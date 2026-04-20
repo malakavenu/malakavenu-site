@@ -38,6 +38,7 @@ const VARIANTS: ArticleVisualVariant[] = ['violet', 'cyan', 'warm'];
 
 export const ARTICLE_VISUALS: Record<string, ArticleVisual> = {
   'agent-skills-patterns':           { variant: 'violet', logos: [siClaude],                              mono: '/skills' },
+  'ai-ready-codebase-structure':     { variant: 'cyan',   logos: [siClaude],                              mono: '/CLAUDE.md' },
   'ai-and-design-systems':           { variant: 'warm',   logos: [siFigma, siClaude],                     mono: '/design×ai' },
   'angular-21-signals-zoneless':     { variant: 'warm',   logos: [siAngular],                             mono: '/v21' },
   'bedrock-agentcore-production':    { variant: 'warm',   logos: [siAnthropic],                           mono: '/bedrock' },

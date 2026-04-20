@@ -1,0 +1,182 @@
+---
+title: 'The anatomy of an AI-ready codebase'
+description: 'Six artifacts that turn scattered prompts into a system your whole team — and every model — can work with. Stop prompting. Start building.'
+date: '2026-04-20'
+updated: '2026-04-20'
+category: 'AI Patterns'
+tags: ['Agent Skills', 'Claude', 'MCP', 'Agents', 'Project Structure', 'Developer Experience', 'Cursor']
+author: 'Malaka Venugopal Reddy'
+---
+
+Most developers still use AI like a vending machine: type a prompt, get a response, copy it back into the editor, repeat. That works until the project is serious — and then it stops working in a very specific way. The model forgets your conventions. Different team members get different answers to the same question. New engineers can't reproduce what their teammates did yesterday. Reviews drift. Quality slides.
+
+The teams that have moved past this don't write better prompts. They **build a codebase the model can read, reason about, and extend safely** — the same way they'd onboard a new senior engineer.
+
+That codebase has six artifacts. None of them are magic. All of them are versioned text files sitting next to your code.
+
+<img
+  src="/images/articles/ai-ready-codebase.svg"
+  alt="Diagram of an AI-ready project structure: CLAUDE.md, rules/, commands/, skills/, agents/, settings.json, each labelled with its role."
+  width="1400"
+  height="900"
+/>
+
+## The six-file anatomy
+
+Here's the mental model I use for every AI-integrated project now. Every file is opt-in, every file is portable across Claude, Cursor, Cline, Aider, or any future model of the week.
+
+```text
+your-project/
+├── CLAUDE.md              ← how AI should behave in this project
+├── rules/                 ← non-negotiable conventions
+│   ├── code-style.md
+│   ├── testing.md
+│   └── api-conventions.md
+├── commands/              ← named, reusable workflows
+│   ├── review.md
+│   ├── fix-issue.md
+│   └── deploy.md
+├── skills/                ← capabilities the model auto-triggers
+│   ├── debugging/
+│   └── testing/
+├── agents/                ← specialised subagents with narrow scope
+│   ├── code-reviewer.md
+│   └── security-auditor.md
+└── settings.json          ← permissions, model routing, guardrails
+```
+
+Read that as a ladder. **CLAUDE.md** is the slowest to change and applies globally. **agents/** are the most specialised and only fire when explicitly invoked. Everything in between gets progressively more precise.
+
+## 1. CLAUDE.md — the project-level system prompt
+
+Every coding agent I use today reads a root-level markdown file before it does anything else. Claude Code calls it `CLAUDE.md`. Cursor calls it `AGENTS.md`. Some projects still use `.cursorrules`. The file's name matters less than the fact that **one canonical file sets the tone for every AI interaction in this repo**.
+
+What goes in it:
+
+- The project's architecture in three paragraphs ("This is a Next.js 16 monorepo. Angular apps live in `/apps`, shared libs in `/libs`. We use Nx...")
+- Non-obvious gotchas (port numbers, which files are auto-generated, which commands to never run)
+- Links to the `rules/` and `commands/` files for the model to discover
+- A crisp "don't do" list (don't add comments that restate code, don't amend commits, don't edit the `dist/` folder)
+
+What doesn't go in it:
+
+- Anything that changes weekly. That's what `rules/` is for.
+- Every convention in the codebase. That's what specialised rule files are for.
+
+Keep it under 150 lines. The model reads it at the start of every session — every line you add costs tokens, latency, and attention.
+
+## 2. rules/ — your non-negotiables
+
+Rules files are the codified version of "that thing we always have to tell the new hire." They're short (10–40 lines), single-concern, and precise:
+
+```text
+rules/
+├── code-style.md         ← naming, imports, file size, comments
+├── testing.md            ← coverage expectations, mocking policy
+├── api-conventions.md    ← error shapes, versioning, status codes
+├── git-hygiene.md        ← commit message format, no force-pushes
+└── secrets.md            ← which files never touch real credentials
+```
+
+The discipline is: **one rule, one file**. Resist the monolith. When `code-style.md` grows past 80 lines, split it. When you find yourself explaining the same thing in two code reviews, that's a new rule file.
+
+Cursor's rule system lets you attach rules to glob patterns — `*.test.ts` only sees `testing.md`. Claude Skills work similarly. This is real load-bearing infrastructure; don't treat it as a nice-to-have.
+
+## 3. commands/ — workflows the team can invoke
+
+A command is a named, reproducible workflow the model executes the same way every time. Think of them as bash aliases for complex, multi-step AI tasks.
+
+```text
+commands/
+├── review.md             ← "@review this PR against our checklist"
+├── fix-issue.md          ← "@fix-issue 1247" → read issue, plan, patch, test
+├── deploy.md             ← pre-flight checks, run migrations, verify
+├── release-notes.md      ← aggregate merged PRs into a customer-facing draft
+└── onboard.md            ← set up a new engineer's machine
+```
+
+The value isn't cleverness. It's **reproducibility**. When every engineer types `/review` and gets the same 12-point check, reviews stop being a function of who you got. When `/deploy` encodes the pre-flight rituals, the 2 AM oncall doesn't have to remember them.
+
+One counter-intuitive lesson: **commands are often boring and that's fine**. Our most-used command in a recent project was just `/sync-types` — regenerate types from the API spec, run the typecheck, paste any new errors. Six lines of instruction. Saved someone fifteen minutes a day.
+
+## 4. skills/ — capabilities the model triggers itself
+
+Commands are _invoked_. Skills are _offered_. A skill is a bundled capability — prompt scaffolding, a tool set, a UI, maybe a few evals — that the agent discovers and chooses to use based on context.
+
+This is the layer I wrote about in [Agent Skills: the missing packaging unit for LLM features](/articles/agent-skills-patterns). A skill might look like:
+
+```text
+skills/debugging/
+├── SKILL.md              ← when to use, what it does
+├── tools/                ← MCP tool descriptors
+├── prompts/              ← few-shot examples
+├── ui/                   ← optional generative UI components
+└── evals/                ← golden traces to catch regressions
+```
+
+The distinction that matters in practice: **if a human has to type the name of the thing, it's a command. If the model recognises "oh this is a debugging situation" and reaches for it, it's a skill.** Skills are where your team's tribal knowledge goes to live forever.
+
+## 5. agents/ — specialised subagents
+
+Agents are the escape hatch. When a problem is narrow enough to have its own persona — "code reviewer", "security auditor", "accessibility checker", "migration assistant" — and the parent agent would pollute its own context by trying to handle it inline, you spawn a subagent.
+
+```text
+agents/
+├── code-reviewer.md      ← senior eng, reviews for logic + design
+├── security-auditor.md   ← reads only, focuses on OWASP top 10
+├── a11y-checker.md       ← checks components against WCAG 2.2
+└── migration-planner.md  ← reads diffs, produces ordered playbook
+```
+
+The [production rules for subagents](/articles/subagents-in-production) apply here — keep them narrow, give them clear termination criteria, watch the token economics. But the _placement_ of the subagent definitions next to `rules/` and `commands/` is what makes them discoverable by the rest of the team. A subagent that lives in one engineer's head is a subagent you'll re-implement six times.
+
+## 6. settings.json — permissions and control
+
+The last file is the least sexy and the most important when things go wrong. `settings.json` (or `.claude/settings.json`, or a `.cursor/config.json`, same idea) is where you declare:
+
+- Which commands the model is **allowed** to run without asking (`npm test` yes, `rm -rf` never)
+- Which files are off-limits (`.env*`, `secrets/`, `dist/`)
+- Which model is routed for which kind of task (fast model for typos, stronger model for architecture)
+- Which MCP servers are enabled and with what scopes
+- Where logs go and what gets redacted
+
+Think of this as the **IAM layer for your AI**. A year from now you'll thank the version of yourself that set tight permissions early instead of the version that discovered a subagent deleted `node_modules` at 3 AM.
+
+## Why this structure compounds
+
+The first time you set up these six artifacts, it feels like over-engineering. Three weeks in, three things start happening:
+
+**Reviews get sharper.** Because `rules/` encodes what you actually care about, `/review` catches the same things the senior engineer would — every time.
+
+**Onboarding collapses.** New engineers read `CLAUDE.md`, skim `rules/`, and by hour two are running `/onboard`. The AI doesn't replace the senior engineer; it replaces the ten conversations that used to cost them an afternoon.
+
+**The model gets smarter about your repo without any fine-tuning.** Because context is explicit and discoverable, the model makes fewer generic-sounding suggestions and more suggestions that sound like your team.
+
+**It survives model swaps.** When Anthropic ships a new Claude, or you switch to a different provider entirely, none of this needs to change. `CLAUDE.md` is plain markdown. Skills are plain folders. Commands are plain instructions. You didn't bet on a vendor — you bet on a filesystem.
+
+## A pragmatic adoption path
+
+Don't try to ship all six artifacts on day one. The order that actually works:
+
+1. **Week 1** — Write `CLAUDE.md`. Keep it under 100 lines. Commit it.
+2. **Week 2** — Extract two rules you're tired of repeating into `rules/`.
+3. **Week 3** — Turn your most common review ritual into `/review`.
+4. **Month 2** — Pick _one_ recurring pain (debugging a specific service, running migrations) and package it as a skill.
+5. **Month 3** — Introduce your first subagent (usually `code-reviewer` or `security-auditor`).
+6. **Ongoing** — Tighten `settings.json` as you learn which permissions you actually need and which you thought you did.
+
+The wrong mental model is "I'll build the whole scaffold, then start using AI." The right one is: **every time the AI gets something wrong in a repeatable way, that's a new file**. The anatomy emerges. You don't design it up front.
+
+## Stop prompting. Start building.
+
+The teams still typing clever prompts into a chat box will keep getting clever answers that don't compose. The teams committing `CLAUDE.md` and `rules/code-style.md` and `commands/deploy.md` are building something fundamentally different — a codebase that **gets smarter every week**, that any engineer can walk into, and that any current-or-future model can pick up without ceremony.
+
+That's not prompt engineering. That's software engineering, applied to AI. And it's the only version of this that scales past one engineer, one project, one week.
+
+---
+
+**Further reading:**
+
+- [Agent Skills: the missing packaging unit for LLM features](/articles/agent-skills-patterns)
+- [Subagents in production: when delegation actually pays off](/articles/subagents-in-production)
+- [Designing MCP servers your agents will actually use](/articles/mcp-server-design)
