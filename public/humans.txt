@@ -1,0 +1,31 @@
+/* TEAM */
+Frontend Architect & AI Engineer: Malaka Venugopal Reddy
+Site:     https://malakavenu.com
+Contact:  venu.malaka [at] gmail.com
+LinkedIn: https://www.linkedin.com/in/venumalaka
+GitHub:   https://github.com/malakavenu
+X:        https://x.com/malakavenu
+Facebook: https://www.facebook.com/malakavenu
+Location: Bangalore, India
+
+/* THANKS */
+To every engineer who shipped Angular 2 → 21, the React core team, and
+the open-source AI tooling community (LangChain, LangGraph, MCP, Bedrock).
+
+/* SITE */
+Last update: 2026-04-20
+Language:    English (en-US)
+Doctype:     HTML5
+Standards:   WCAG 2.2 AA, Web Vitals, Semantic HTML, JSON-LD
+Components:  Hand-written semantic HTML, custom CSS (no framework),
+             vanilla JavaScript, Space Grotesk + Inter via Google Fonts.
+Built with:  Care, taste, and many Angular major-version upgrades.
+
+/* PRIVACY */
+Analytics:    Aggregate events only (Vercel Analytics + Speed Insights).
+Attribution:  First-touch referrer / UTM / short-link source, stored in
+              a first-party cookie (mv_attr) for 30 days, base64 JSON, no PII.
+Live reader:  Anonymised 10-byte SHA-256 fingerprint, 5-minute sliding
+              window, auto-expires after 1 hour.
+DNT:          Respected. Sending DNT=1 disables all tracking & cookies.
+Opt-out:      Set cookie `mv_track_opt_out=1` to disable client events.

@@ -1,0 +1,552 @@
+---
+title: "Fixing INP: the Core Web Vital most production apps quietly fail"
+description: "Why 43% of sites still fail INP, the Angular levers that actually move it, and the rollout playbook that gets a real app under 200ms without a rewrite."
+date: '2026-02-08'
+updated: '2026-02-08'
+category: 'Performance'
+tags: ['Core Web Vitals', 'INP', 'Performance', 'Angular', 'Frontend Platform']
+author: 'Malaka Venugopal Reddy'
+---
+
+LCP and CLS have a well-rehearsed playbook by now. INP — Interaction to Next Paint — is the metric that quietly broke production apps in 2024 and is _still_ the one most teams haven't fully fixed in 2026. Roughly 43% of real-world sites fail it. The fixes are well known; the discipline to apply them is not.
+
+This is the playbook I run when I'm asked to take an app from "amber INP" to "green INP" without a full rewrite. Everything below has shipped against a real app at real scale; nothing in here is theoretical.
+
+## The 2026 thresholds (and what they actually mean)
+
+Before anything else, the bands you're being measured against:
+
+| Metric | Good | Needs improvement | Poor |
+| --- | --- | --- | --- |
+| **LCP** | ≤ 2.5s | 2.5–4.0s | > 4.0s |
+| **CLS** | ≤ 0.1 | 0.1–0.25 | > 0.25 |
+| **INP** | ≤ 200ms | 200–500ms | > 500ms |
+
+Two things make INP qualitatively harder than its predecessors:
+
+1. It's the **worst** interaction in a session, not the average. One slow click pollutes the whole visit.
+2. It measures _to next paint_ — not just the JS handler returning. Style recalc, layout, paint, compositing all count.
+
+> **Field note.** The first time a team sees their p75 INP per route they almost always blame the framework. Nine times out of ten the issue is third-party scripts, an unvirtualised list, or a single fat reducer firing on every keystroke. The framework is rarely the villain.
+
+The business framing — and you will need one — is the easier sell. Sites that pass all three CWV typically see ~24% lower bounce rates in industry studies, and CWV is now an established (small but real) ranking signal. The honest pitch isn't SEO though. It's that a button paints in 100ms vs 600ms feels like a different product, even when neither user can articulate why.
+
+## Lab vs field: stop measuring INP in Lighthouse
+
+The single most expensive mistake I see is treating Lighthouse INP as the source of truth.
+
+- **Lab INP** is synthetic — a script clicks one button on a cold page in a controlled environment. It's directionally useful for catching regressions in CI. It is _not_ what Google ranks on, and it is not what your users experience.
+- **Field INP** is what real users hit. It's measured via the Chrome User Experience Report (CrUX) for ranking, and via your own RUM for fixing.
+
+If you're optimising INP without RUM, you are guessing. Wire it up first; everything below depends on it.
+
+### The web-vitals v4.x setup that I actually ship
+
+The modern `web-vitals` library (v4.x) ships per-interaction attribution out of the box. The setup that matters:
+
+```ts
+import { onINP, onLCP, onCLS, onTTFB, onFCP } from 'web-vitals/attribution';
+
+type VitalsPayload = {
+  name: string;
+  value: number;
+  rating: 'good' | 'needs-improvement' | 'poor';
+  id: string;
+  navigationType: string;
+  attribution: Record<string, unknown>;
+  route: string;
+  release: string;
+};
+
+function send(metric: VitalsPayload) {
+  // Use sendBeacon so it survives a page unload.
+  const body = JSON.stringify(metric);
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon('/api/vitals', body);
+  } else {
+    fetch('/api/vitals', { body, method: 'POST', keepalive: true });
+  }
+}
+
+function withContext(metric: any) {
+  send({
+    ...metric,
+    route: window.__ROUTE__ ?? location.pathname,
+    release: window.__RELEASE__ ?? 'unknown',
+  });
+}
+
+onINP(withContext, { reportAllChanges: false });
+onLCP(withContext);
+onCLS(withContext);
+onTTFB(withContext);
+onFCP(withContext);
+```
+
+Three details that matter and people miss:
+
+- **`reportAllChanges: false`** is the right default. INP is a session-level worst-case; you want one final value per visit, not a stream of intermediates.
+- **`sendBeacon`** is the right transport. INP is finalised on visibility change / unload. A regular `fetch` will be cancelled.
+- **Tag with route + release.** A 600ms INP without context is unactionable. A 600ms INP on `/checkout/payment` in `release@2026.02.04` is a Jira ticket.
+
+### Per-interaction attribution: the lever that turns INP from "vibes" to "backlog"
+
+The attribution module is where the real value sits. You get the actual element selector, the event type, the script that ran, the breakdown of input delay vs processing vs presentation:
+
+```ts
+onINP((metric) => {
+  const a = metric.attribution;
+
+  send({
+    name: 'INP',
+    value: metric.value,
+    rating: metric.rating,
+
+    // What the user did:
+    eventType: a.interactionType,            // 'pointer' | 'keyboard' | 'mouse'
+    eventTime: a.interactionTime,
+    target: a.interactionTarget,             // CSS selector
+
+    // Where the time went:
+    inputDelay: a.inputDelay,
+    processingDuration: a.processingDuration,
+    presentationDelay: a.presentationDelay,
+
+    // What ran:
+    longestScript: a.longAnimationFrameEntries?.[0]?.scripts?.[0]?.invoker,
+
+    route: window.__ROUTE__,
+    release: window.__RELEASE__,
+  });
+});
+```
+
+When this lands in your dashboard you stop arguing about INP and start fixing it. Group by `target` and `route`. Sort by `value`. The top 5 rows are your sprint.
+
+> **Rule of thumb.** If you can't tell me the top three INP-offending interactions on your site by name and route, your instrumentation is the bug. Fix that first.
+
+## The five sources of bad INP I find every time
+
+After auditing a dozen apps, INP regressions cluster around the same culprits. Roughly in order of frequency:
+
+### 1. Heavy synchronous event handlers
+
+A click fires 80–250ms of JS on the main thread. Often the work is reasonable; the placement is not. The fix is almost always _yielding_ — split the work, kick the tail to the next task, or move it to a worker. See `scheduler.yield()` below.
+
+### 2. Change detection that cascades through the whole tree
+
+A shared `BehaviorSubject` or a Zone-triggered event fires CD on 200 components. Most produce identical output. INP cost: 100–300ms hidden as "Angular change detection" in the flame chart. Fix is `OnPush`, signals, and splitting state by frequency of change.
+
+### 3. Third-party scripts blocking the main thread
+
+Analytics, A/B test orchestrators, chat widgets, consent managers, session recorders. Each one steals 30–80ms per interaction. The cumulative impact is brutal and almost always the largest single quick win.
+
+### 4. Unoptimised lists
+
+A 5000-row table re-renders on a hover. The handler is fine; the render is not. Virtualisation territory.
+
+### 5. Layout thrash inside handlers
+
+Code that reads layout (`offsetWidth`), writes style (`element.style.left = …`), reads layout again. Forces synchronous reflow per iteration. Hundreds of milliseconds inside what looks like a 5-line function.
+
+If you fix only those five categories, you've solved INP for ~80% of real apps.
+
+## Angular-specific levers, in priority order
+
+I ship Angular for a living. The tools that actually move INP, ordered by impact-per-hour:
+
+### Zoneless + signals for surgical change detection
+
+The single biggest INP unlock in Angular 21 is moving to **zoneless** change detection with signals. It is roughly the equivalent of going from AngularJS `$digest` to Ivy — same framework, completely different runtime cost profile.
+
+```ts
+import { bootstrapApplication } from '@angular/platform-browser';
+import { provideZonelessChangeDetection } from '@angular/core';
+
+bootstrapApplication(AppComponent, {
+  providers: [provideZonelessChangeDetection()],
+});
+```
+
+With Zone.js gone, Angular only re-renders the components whose signals actually changed. A click that previously triggered CD on 200 components now touches the three that read the mutated signal. On a search/filter surface, I've seen p75 INP drop from 480ms to 140ms on this change alone.
+
+### Split urgent vs non-urgent updates with `scheduler.yield()`
+
+Angular has no direct `useTransition`, but the same shape is cheap to build: update the input signal immediately, then yield before kicking off the expensive derivation.
+
+```ts
+@Component({
+  selector: 'app-search',
+  template: `
+    <input [value]="query()" (input)="onInput($event)" />
+    @for (row of results(); track row.id) {
+      <app-row [row]="row" />
+    }
+  `,
+})
+class SearchComponent {
+  query = signal('');
+  items = input.required<Item[]>();
+  results = signal<Item[]>([]);
+
+  async onInput(e: Event) {
+    const value = (e.target as HTMLInputElement).value;
+    this.query.set(value);
+
+    if ('scheduler' in window && 'yield' in scheduler) {
+      await scheduler.yield();
+    }
+    this.results.set(expensiveFilter(this.items(), value));
+  }
+}
+```
+
+The input stays snappy this frame; the filter yields to the browser so paint and other pending input happen first.
+
+### `computed` for derived heavy work
+
+For a value that drives an expensive downstream render, wrap it in `computed`. Angular only recomputes when its inputs change, and templates only re-render the bindings that read it.
+
+```ts
+query = signal('');
+items = signal<Item[]>([]);
+
+results = computed(() => bigFilter(this.items(), this.query()));
+```
+
+Same shape as React's `useMemo`, but you never write the dependency array — the reactive graph tracks it for you. Use when the heavy work is downstream of state, not inside an event handler.
+
+### `OnPush` + `ChangeDetectionStrategy` — but signals render it nearly unnecessary
+
+The naive advice used to be "set `OnPush` on every component." With signal inputs and signal reads, the equivalent optimisation is automatic on the paths signals touch. The cases where `OnPush` still earns its keep in 2026:
+
+- A legacy component that reads from a service with a `BehaviorSubject` instead of a signal.
+- A component that receives an object prop and mutates internal state via `@Input` setters.
+- Mixed codebases mid-migration where some inputs are still plain values.
+
+For greenfield code in v21, signal inputs plus `computed` make `OnPush` redundant. Measure before adding it.
+
+### Virtualisation for any list > 200 rows
+
+`@angular/cdk/scrolling` or `@tanstack/angular-virtual`. Not optional. A 1000-row list will fail INP no matter how clever your signal graph is. The CDK pattern:
+
+```ts
+import { Component, input } from '@angular/core';
+import { ScrollingModule } from '@angular/cdk/scrolling';
+
+@Component({
+  selector: 'app-big-list',
+  imports: [ScrollingModule],
+  template: `
+    <cdk-virtual-scroll-viewport itemSize="48" class="viewport">
+      <app-row
+        *cdkVirtualFor="let row of items(); trackBy: trackById; templateCacheSize: 20"
+        [row]="row"
+      />
+    </cdk-virtual-scroll-viewport>
+  `,
+  styles: [`.viewport { height: 600px; }`],
+})
+class BigList {
+  items = input.required<Row[]>();
+  trackById = (_: number, r: Row) => r.id;
+}
+```
+
+Two details: `templateCacheSize` should be ~5–20, and the row component should read from signal inputs so scroll doesn't cascade CD through unchanged rows.
+
+### Move work off the main thread (Comlink + Web Workers)
+
+For genuinely heavy compute — search index, fuzzy match, parser, image processing, CRDT diff — a Web Worker is now ergonomic in 2026. `Comlink` makes the call site look like an async function:
+
+```ts
+// worker.ts
+import * as Comlink from 'comlink';
+import Fuse from 'fuse.js';
+
+const api = {
+  buildIndex(items: Item[]) {
+    this.fuse = new Fuse(items, { keys: ['title', 'body'], threshold: 0.3 });
+  },
+  search(query: string) {
+    return this.fuse.search(query).slice(0, 50);
+  },
+};
+Comlink.expose(api);
+
+// main.ts
+import * as Comlink from 'comlink';
+const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+const api = Comlink.wrap<typeof api>(worker);
+
+await api.buildIndex(items);
+const hits = await api.search('refund policy');
+```
+
+INP win is exactly proportional to the work moved. Anything > 50ms of pure compute should be in a worker.
+
+### `scheduler.yield()` for splitting long tasks
+
+The newest lever, and one of the cheapest. When you have unavoidable synchronous work, yield to the browser between chunks:
+
+```ts
+async function processBatch(items: Item[]) {
+  for (const item of items) {
+    expensiveSyncWork(item);
+
+    // Yield to the browser so it can paint and handle pending input.
+    if ('scheduler' in window && 'yield' in scheduler) {
+      await scheduler.yield();
+    } else {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+  }
+}
+```
+
+This is the mechanism React 18/19 uses internally for concurrent rendering. Doing it manually inside event handlers is an INP cheat code.
+
+## React, Vue, Svelte: the same shape, different names
+
+The principles transfer. Quick translation table for teams on other stacks:
+
+| Angular 21 | React 19 | Vue 3.5+ | Svelte 5 |
+| --- | --- | --- | --- |
+| Zoneless + signals | `useTransition` / auto-batching | zoneless reactivity (default) | runes (`$effect`) with `tick()` |
+| `signal` / `computed` | `useState` / `useMemo` | `ref` / `computed` | `$state` / `$derived` |
+| `linkedSignal` | `useDeferredValue` | `customRef` w/ debounce | derived runes |
+| `effect()` | `useEffect` | `watchEffect` | `$effect` |
+| `@for` with `track` + CDK virtual scroll | `@tanstack/react-virtual` | `vue-virtual-scroller` | `svelte-virtual-list` |
+| `@defer` with triggers | `<Suspense>` + `lazy` | `defineAsyncComponent` | `{#await}` |
+
+If you're on React, the equivalent of Angular's zoneless+signals move is the React 19 auto-batching and concurrent transitions work. Different shape, same underlying objective: stop rendering the whole tree on every interaction.
+
+## Third-party scripts: defer hard, then defer harder
+
+Third-party scripts are the most frequent INP villain in apps that have already done the React work. The hierarchy of fixes:
+
+1. **`async defer`** at minimum.
+2. **Load on `requestIdleCallback`** for anything that doesn't need to run for the LCP path.
+3. **Load on user intent** for surfaces that may never be touched (chat widgets, video players, share modals).
+4. **Server-side proxy** for analytics so you don't pay the third-party connection cost on the main thread.
+
+The "load on user intent" pattern in Angular looks like:
+
+```ts
+import { Component, DestroyRef, afterNextRender, inject, signal } from '@angular/core';
+
+@Component({
+  selector: 'app-chat-widget',
+  template: ``,
+})
+export class ChatWidget {
+  private destroyRef = inject(DestroyRef);
+  private loaded = signal(false);
+
+  constructor() {
+    afterNextRender(() => {
+      const load = () => {
+        if (this.loaded()) return;
+        const s = document.createElement('script');
+        s.src = 'https://chat.example.com/widget.js';
+        s.async = true;
+        document.head.appendChild(s);
+        this.loaded.set(true);
+      };
+
+      document.addEventListener('pointerdown', load, { once: true, passive: true });
+      document.addEventListener('keydown', load, { once: true });
+      const t = window.setTimeout(load, 5000);
+      this.destroyRef.onDestroy(() => clearTimeout(t));
+    });
+  }
+}
+```
+
+`afterNextRender` is the Angular 21 lifecycle that runs only in the browser, after hydration, exactly once. It is the correct hook for "defer this side effect until the user has seen the page."
+
+Chat widgets in particular do not need to ship in your initial bundle. They almost always do.
+
+## Layout thrash detection and fixes
+
+The expensive pattern:
+
+```ts
+// BAD: read → write → read forces two reflows.
+items.forEach((el) => {
+  const w = el.offsetWidth;             // read (forces layout)
+  el.style.width = `${w * 2}px`;        // write (invalidates layout)
+  console.log(el.offsetHeight);         // read (forces layout AGAIN)
+});
+```
+
+The fix — batch reads, then writes:
+
+```ts
+// GOOD: all reads, then all writes.
+const widths = items.map((el) => el.offsetWidth);
+items.forEach((el, i) => {
+  el.style.width = `${widths[i] * 2}px`;
+});
+```
+
+For surfaces that update frequently, `content-visibility: auto` and CSS `contain` are the cheap wins:
+
+```css
+.card {
+  content-visibility: auto;
+  contain-intrinsic-size: 200px;
+  contain: layout paint;
+}
+```
+
+`content-visibility: auto` lets the browser skip rendering off-screen elements entirely. On dashboards with hundreds of cards, the INP improvement is significant. `contain: layout paint` tells the browser that this subtree's layout doesn't affect the rest of the page — invalidations stop propagating outward.
+
+## Long Animation Frames API: the one to instrument next
+
+The Long Animation Frames API (LoAF) is the successor to Long Tasks. It surfaces _all_ the work that contributed to a slow frame: scripts, style, layout, paint, render-blocking promises. It's the most useful single API for INP debugging shipped in the last two years.
+
+```ts
+const observer = new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) {
+    if (entry.duration < 50) continue;
+    console.warn('LoAF', {
+      duration: entry.duration,
+      blockingDuration: entry.blockingDuration,
+      scripts: entry.scripts.map((s) => ({
+        name: s.invoker,
+        duration: s.duration,
+        forced: s.forcedStyleAndLayoutDuration,
+      })),
+    });
+  }
+});
+observer.observe({ type: 'long-animation-frame', buffered: true });
+```
+
+Pipe this into your RUM alongside INP. When a slow interaction lands, you have the actual script names that ran during that frame. Time-to-fix drops by an order of magnitude.
+
+## Cross-references: LCP and CLS still matter
+
+INP gets the attention because it's the newest and the worst-failed. But the three CWV interact:
+
+- A slow LCP often means the same JS that's blocking paint is also blocking interaction. Fixing LCP usually drags INP along for the ride.
+- CLS regressions inside an interaction (a click that triggers a layout shift) directly inflates INP, because the shift is part of the "next paint."
+- Hydration delay impacts both LCP and INP — pre-hydration clicks are queued, then handled in a single fat task.
+
+> **Field note.** When INP and LCP regress together, the cause is almost always the bundle. When INP regresses alone, it's almost always a handler or third-party. When CLS regresses in interactions, it's almost always an `<img>` without dimensions or a popover that pushes layout.
+
+## CI integration: making INP a build-time concern
+
+The goal is to catch INP regressions before they ship, not in production. The CI stack I run:
+
+- **Lighthouse CI** in PR checks. Yes, it's lab. Yes, it's directional. It catches the obvious regressions (a 2MB JS bundle landing because someone imported `lodash`).
+- **Throttled Playwright traces** for the top 5 user interactions on the top 5 pages. Assert that the INP-equivalent timing stays under threshold.
+- **Bundle-size budgets** per route. INP and bundle size are correlated; budget enforcement is a leading indicator.
+- **Real-user monitoring with alerts.** Slack notification when p75 INP for a route exceeds a threshold for > 1 hour with > 100 sessions.
+
+A reasonable Lighthouse CI config:
+
+```json
+{
+  "ci": {
+    "collect": {
+      "url": [
+        "https://staging.example.com/",
+        "https://staging.example.com/checkout"
+      ],
+      "settings": {
+        "preset": "desktop",
+        "throttlingMethod": "simulate"
+      }
+    },
+    "assert": {
+      "preset": "lighthouse:recommended",
+      "assertions": {
+        "interactive": ["error", { "maxNumericValue": 3500 }],
+        "max-potential-fid": ["error", { "maxNumericValue": 200 }],
+        "total-blocking-time": ["error", { "maxNumericValue": 300 }],
+        "uses-long-cache-ttl": "off"
+      }
+    }
+  }
+}
+```
+
+`max-potential-fid` and `total-blocking-time` are the lab proxies for INP risk. Treat them as guardrails, not truth.
+
+## RUM dashboard design: what to actually build
+
+Don't buy the feature-rich tier of an APM and call it a day. The dashboard that's actually useful for INP work has six panels:
+
+1. **p75 INP per route, last 7 days, week-over-week delta.** The headline.
+2. **Top 10 worst interactions by `route + target`, last 24h.** Your backlog.
+3. **INP breakdown** — input delay vs processing vs presentation, stacked. Tells you _what kind_ of fix.
+4. **Per-release p75 INP overlay.** The line that ticks up the day a bad release shipped is the one you revert.
+5. **CrUX comparison.** Your RUM number should track CrUX within ~10%. Big gaps mean a sampling issue.
+6. **Slowest scripts in LoAF entries**, grouped by invoker.
+
+> **Median is a vanity metric for INP.** Watch p75. That's what CrUX reports and what ranks. p95 is useful as a leading indicator but is dominated by outliers; p75 is the sweet spot of "real users feel this" without being noisy.
+
+## A real before/after
+
+A typical mid-size SaaS app I audited last quarter. Numbers are real, anonymised:
+
+| Metric | Before | After 4 weeks |
+| --- | --- | --- |
+| p75 INP, all routes | 612ms | 178ms |
+| p75 INP, `/dashboard` (worst) | 980ms | 240ms |
+| Lighthouse TBT | 480ms | 110ms |
+| 3rd-party JS (KB, gzipped) | 410 | 180 |
+| Bounce rate, 7d trailing | 38% | 31% |
+
+What moved the needle, in order:
+
+1. Deferring three third-party scripts to user intent: -180ms p75
+2. Virtualising the dashboard table with CDK virtual scroll: -160ms p75
+3. Moving the root component to zoneless + signals on the search input: -90ms p75
+4. Layout thrash fix in the sidebar resize handler: -60ms p75
+5. Replacing a shared `BehaviorSubject` with a signal graph + `computed` selectors: -40ms p75
+
+Total engineering investment: roughly 18 person-days across one staff engineer and one senior. No rewrite. No framework swap.
+
+## The week-by-week rollout I actually run
+
+When I'm given an app with amber/poor INP, the order goes:
+
+- **Week 1: instrument.** Field RUM with `web-vitals` v4 attribution, LoAF observer, per-interaction tagging, Slack alert on p75 regression, RUM dashboard with the six panels above.
+- **Week 1–2: identify the worst three interactions per top-5 route.** Fix them. Usually accounts for 60% of the win.
+- **Week 2–3: hygiene.** Virtualise lists with CDK scroll, defer third-party scripts to user intent, audit change detection with Angular DevTools, kill layout thrash.
+- **Week 3–4: roll out per-route behind a flag.** 1% → 10% → 50% → 100%. Watch p75 INP per route, not aggregate.
+- **Week 4+: hold the line.** INP regression is a CI concern from now on, not a quarterly project. Add bundle budgets per route. Auto-revert flags on regression.
+
+It is genuinely possible to take a real app from p75 INP of 600ms to under 200ms in a month with this. Not glamorous, mostly disciplined.
+
+## The business case for execs
+
+Two paragraphs that have closed budget for me:
+
+> Sites that pass all three Core Web Vitals see roughly 24% lower bounce rates in industry studies. INP failure correlates more strongly with task abandonment than either LCP or CLS — users who can't predict whether a button will respond stop pressing buttons.
+>
+> The investment is bounded. A four-week sprint with one staff engineer and one senior typically takes a failing app to passing, with measurable revenue impact within the same quarter. The work also pays compounding interest: the instrumentation, CI gates, and cultural patterns persist after the project ends.
+
+Lead with the user-experience framing. Close with the ranking signal. Don't oversell either.
+
+## What to drop from the old playbook
+
+A few things I've stopped doing:
+
+- **Stopped chasing Lighthouse score.** It's a directional number, not a goal. Real users don't see it.
+- **Stopped treating INP as a frontend-only project.** Server response time, hydration cost, and CDN config all show up in the field number.
+- **Stopped reviewing aggregate p75.** Per-route, per-interaction, or it's fiction.
+- **Stopped trusting my own perception.** A staff engineer on a M3 MacBook on hotel wifi is not the median user. Field data only.
+
+## The honest summary
+
+INP is the metric that finally exposes the gap between "the app works on my machine" and "the app works for everyone using it." The fixes are well-known and the tooling is mature. The discipline — instrumentation first, attribution-driven prioritisation, weekly p75 review, CI gates, a flagged rollout — is the part most teams skip.
+
+A button that responds in 100ms is a different product than one that responds in 600ms. INP is the cheapest measurable proxy for that difference. Worth the time.
+
+---
+
+Running an INP audit on your app right now? I've done a few — [drop me a line](/#contact).

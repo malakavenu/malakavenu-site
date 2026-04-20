@@ -1,0 +1,625 @@
+---
+title: "Module Federation 2 and the honest case for micro-frontends in 2026"
+description: "When micro-frontends genuinely help, when they quietly hurt, and how Module Federation 2 — type sharing, manifest discovery, runtime parity across Webpack/Rspack/Vite — changed the trade-offs enough to deserve another look."
+date: '2026-02-14'
+updated: '2026-02-14'
+category: 'Frontend Platform'
+tags: ['Micro-Frontends', 'Module Federation', 'Rspack', 'Vite', 'Frontend Platform']
+author: 'Malaka Venugopal Reddy'
+---
+
+Micro-frontends had a backlash year somewhere around 2023, and most of it was deserved. The backlash was about the _bad_ versions: an iframe of an iframe of a Webpack 5 build, three Angular versions on one page, type drift between teams, a 14-minute build pipeline, and an INP score that made the cart page feel like a 2009 enterprise portal.
+
+In 2026, with Module Federation 2 and the maturity that came with it, the trade-off is different. This is the version I would actually defend in an architecture review — and the version I would push back on, just as hard, when the conditions are not there.
+
+## The decision framework
+
+Before any technical conversation, run the decision framework. I have walked teams through this enough times that I now print it on the whiteboard before anyone draws boxes.
+
+### Three conditions, all required
+
+1. **Independent release cadence is a real business need.** Not "would be nice." Two or more teams shipping to the same production URL with conflicting deploy schedules, and the cost of coordination is measurable.
+2. **Domain boundaries are clean.** Catalog / Checkout / Orders / Profile, not "the form team" and "the table team." MFEs cut along business domains, not technical layers.
+3. **Each MFE is large enough to justify the platform tax.** A 200-line MFE is a feature flag wearing a costume. The minimum viable MFE is roughly a "small product" — a team of 3-6, owning a domain, with their own backlog.
+
+If you do not have all three, you do not have an MFE problem. You have a monorepo problem, and a monorepo solution is two orders of magnitude cheaper.
+
+### The team-shape test
+
+The single sharpest question to ask in an architecture review:
+
+> "If we shipped this as a single app today, what would break first — the build, the codebase, or the people?"
+
+- **The build.** Wrong answer. Bigger build is solvable. Rspack, Turborepo, project references, persistent caching. None of those require federation.
+- **The codebase.** Wrong answer. Codebase organisation is solvable. Module boundaries, lint rules, ownership files, fitness functions. None of those require federation.
+- **The people.** Right answer. If the bottleneck is "10 teams cannot agree on a release date" or "one team's release blocks the others," that is a coordination problem, and federation is a coordination tool.
+
+MFEs are a _team-shape_ tool, not a _frontend-architecture_ tool. Internalise this and most of the bad MFE designs you have seen become explicable.
+
+### When MFEs are the wrong answer
+
+A few patterns I keep seeing in design docs:
+
+- **"We want each team to own their stack."** This is how you ship three Angular versions, two routers, four state libraries, and a bundle the size of an operating system. Don't.
+- **"We want true runtime isolation."** That is iframes. Use iframes. They are underrated for genuinely untrusted or sandboxed workloads.
+- **"We want to gradually migrate from old to new framework."** A strangler-fig pattern with route-level splits is simpler than MFEs and gives you most of the benefit.
+- **"It is what big companies do."** They do it because they have to. You probably don't.
+
+## What Module Federation 2 actually changed
+
+Three things genuinely shifted in MF2 that fix earlier-era pain. A fourth — the platform — is still on you to build.
+
+### 1. TypeScript types ride along
+
+In MF1, federated modules were `any`. You consumed `loadRemoteModule('catalog', './ProductCard')` and prayed. In MF2 (and the `@angular-architects/native-federation` adapter that runs on top of esbuild), types are emitted alongside the federated bundle and consumed by the host's TS server.
+
+```ts
+// catalog/federation.config.ts — the MFE
+import { withNativeFederation, shareAll } from '@angular-architects/native-federation/config';
+
+export default withNativeFederation({
+  name: 'catalog',
+  exposes: {
+    './ProductCard': './src/app/product-card/product-card.component.ts',
+    './CategoryNav':  './src/app/category-nav/category-nav.component.ts',
+  },
+  shared: {
+    ...shareAll({ singleton: true, strictVersion: true, requiredVersion: 'auto' }),
+  },
+  dts: { generateTypes: true },        // emit .d.ts
+});
+```
+
+```ts
+// shell/federation.config.ts — the host
+import { withNativeFederation, shareAll } from '@angular-architects/native-federation/config';
+
+export default withNativeFederation({
+  name: 'shell',
+  remotes: {
+    catalog: 'https://cdn.example.com/catalog/remoteEntry.json',
+  },
+  shared: {
+    ...shareAll({ singleton: true, strictVersion: true, requiredVersion: 'auto' }),
+  },
+  dts: { consumeTypes: true },             // consume from remote
+});
+```
+
+```ts
+// shell/app/routes.ts
+import { loadRemoteModule } from '@angular-architects/native-federation';
+import { Route } from '@angular/router';
+
+export const routes: Route[] = [
+  {
+    path: 'catalog',
+    loadComponent: () =>
+      loadRemoteModule<{ ProductCardComponent: Type<unknown> }>('catalog', './ProductCard')
+        .then(m => m.ProductCardComponent), // typed — Type error if the producer renames the export
+  },
+];
+```
+
+Result: a producer team breaks an `@Input()` on `ProductCardComponent` and the consumer team's CI fails. This single change collapses a category of "it works on staging but not in shell" bugs that defined MF1.
+
+### 2. Manifest-based discovery
+
+Instead of hardcoding remote URLs in your bundler config, you publish an `mf-manifest.json` and the runtime discovers remotes at boot. You can ship a new MFE without touching the host's build. You can roll back a remote with a manifest swap.
+
+```json
+{
+  "id": "catalog",
+  "version": "2.4.7",
+  "publicPath": "https://cdn.example.com/catalog/2.4.7/",
+  "remoteEntry": { "name": "remoteEntry.json", "type": "module" },
+  "exposes": [
+    { "id": "./ProductCard", "name": "ProductCard", "file": "ProductCard.abc123.js" },
+    { "id": "./CategoryNav", "name": "CategoryNav", "file": "CategoryNav.def456.js" }
+  ],
+  "shared": [
+    { "name": "@angular/core", "version": "21.0.0", "singleton": true, "strictVersion": true },
+    { "name": "@angular/common", "version": "21.0.0", "singleton": true, "strictVersion": true },
+    { "name": "@angular/router", "version": "21.0.0", "singleton": true, "strictVersion": true },
+    { "name": "rxjs", "version": "7.8.0", "singleton": true }
+  ]
+}
+```
+
+The host fetches this at boot, knows what is exposed, and can fetch each chunk on demand. You change `version` and `publicPath` to roll forward or back. Your CI becomes "publish manifest + chunks; flip pointer."
+
+This is what makes "true independent deploys" actually work, instead of being a slide.
+
+### 3. Runtime parity across esbuild / Webpack / Rspack / Vite
+
+Same federation runtime, multiple bundlers. Angular's default application builder now uses esbuild, and Native Federation piggybacks on that. You can have the Angular shell on esbuild, one MFE still on Webpack (legacy builder, long tail of custom plugins), and another React/Vue MFE on Rspack — all federate cleanly through the manifest.
+
+Worth knowing: the Angular esbuild builder reports 5–10× faster builds than the legacy Webpack builder in real apps. For an MFE running CI on every PR, that is the difference between a 90-second feedback loop and a 12-minute one.
+
+| Bundler | Cold build (200-component MFE) | HMR feedback | DX |
+| --- | --- | --- | --- |
+| Angular Webpack builder | 110s | 1.4s | Mature, slowest |
+| Angular esbuild builder | 16s | 180ms | Default in v17+, supports Native Federation |
+| Rspack 1.x | 18s | 220ms | Drop-in for legacy Webpack configs |
+| Vite (with MF plugin) | 14s | 90ms | Best DX for non-Angular MFEs in the platform |
+
+For a fresh Angular MFE I start on the esbuild builder + Native Federation today. For legacy Angular Webpack MFEs, migration is mostly `angular.json` edits.
+
+### 4. Dynamic remotes — the part that finally works
+
+```ts
+import { loadRemoteModule } from '@angular-architects/native-federation';
+
+const mod = await loadRemoteModule<{ ProductCardComponent: Type<unknown> }>(
+  'catalog',
+  './ProductCard',
+);
+const ProductCardComponent = mod.ProductCardComponent;
+```
+
+Combine with the manifest registry and you can A/B test different MFE versions per user, ship feature flags that swap remote bindings, or dark-launch an entire MFE behind a header.
+
+## Build-time vs runtime federation
+
+Two patterns. Pick deliberately.
+
+### Build-time federation
+
+The host knows the remotes at build time. The remote URL or manifest pointer is baked in.
+
+- **Pros:** simpler, faster boot, easier debugging, fewer moving parts.
+- **Cons:** every host deploy needs to know about the remote. Independent deploys become "deploy the remote, then deploy the host."
+- **Use when:** the host updates frequently and the remotes are stable, or when there is one team owning both.
+
+### Runtime federation
+
+The host fetches manifests at boot, discovers remotes dynamically.
+
+- **Pros:** true independent deploys. Host does not need to know remote versions. Rollback is a manifest swap.
+- **Cons:** boot adds an HTTP round trip. Debugging "which version of catalog am I on?" is harder.
+- **Use when:** multiple teams own remotes, each on their own cadence, and rollback speed matters.
+
+In my experience, runtime federation is the right default for a real platform. The boot cost is ~50-150ms and it pays for itself the first time you need to roll back a remote without redeploying the shell.
+
+## Shared dependency policy
+
+The most important contract in any MFE platform. Get it wrong and you have shipped three React versions on one page; get it right and the runtime is invisible.
+
+### The minimum singleton list
+
+These are non-negotiable. They MUST be singleton across all MFEs.
+
+- **`@angular/core`, `@angular/common`, `@angular/platform-browser`.** Two Angular runtimes on one page is a fast trip to broken DI, broken zone semantics (or broken zoneless scheduling), and `NullInjectorError` messages that no one has time to debug.
+- **`@angular/router`.** Routing state must be one tree.
+- **`rxjs`.** Operators from two different RxJS instances fail `instanceof` checks silently.
+- **`@angular/forms`.** Cross-MFE form submissions need a single `FormControl` runtime.
+- **The design system primitives.** Tokens, theme provider, portal root.
+- **Your auth client.** One source of truth for the user.
+
+```ts
+// federation.config.ts
+shared: {
+  '@angular/core':             { singleton: true, strictVersion: true, requiredVersion: '^21.0.0' },
+  '@angular/common':           { singleton: true, strictVersion: true, requiredVersion: '^21.0.0' },
+  '@angular/common/http':      { singleton: true, strictVersion: true, requiredVersion: '^21.0.0' },
+  '@angular/platform-browser': { singleton: true, strictVersion: true, requiredVersion: '^21.0.0' },
+  '@angular/router':           { singleton: true, strictVersion: true, requiredVersion: '^21.0.0' },
+  '@angular/forms':            { singleton: true, strictVersion: true, requiredVersion: '^21.0.0' },
+  'rxjs':                      { singleton: true, requiredVersion: '^7.8.0' },
+  '@org/design-system':        { singleton: true, requiredVersion: '^4.0.0' },
+  '@org/auth-client':          { singleton: true, requiredVersion: '^2.0.0' },
+}
+```
+
+In practice most teams use `shareAll({ singleton: true, strictVersion: true, requiredVersion: 'auto' })` and then override the few entries that need to drift.
+
+### What can be eager-shared vs lazy-shared
+
+- **Eager-shared:** loaded with the shell, available to all MFEs immediately. Best for `@angular/core`, `@angular/common`, `rxjs`, design system core. Costs initial bundle size.
+- **Lazy-shared:** the first MFE to need it loads it; subsequent MFEs reuse. Best for less-common deps (charts, rich text editors, heavy formatting libs). Saves initial bundle size, costs first-use latency.
+
+### Version negotiation
+
+`strictVersion: true` will throw at runtime if versions disagree. Worth using for critical singletons; turns a silent two-Angular-runtime bug into an explicit boot-time failure.
+
+For non-critical libs, allow version drift but log the resolved versions to your observability backbone. The first time a regression appears in MFE A, knowing it loaded `lodash@4.16` while everyone else is on `4.17` saves a day of bisecting.
+
+## Host shell architecture pattern
+
+Across two large MFE platforms I have helped run, this is the layout that survived:
+
+### The host shell owns
+
+- **Routing.** Top-level routes, route guards, redirect logic. Each route maps to an MFE entry point.
+- **Auth.** Session management, token refresh, logout. Exposes the user as a context.
+- **Layout chrome.** Header, footer, sidebar, mobile dock. Global navigation lives here.
+- **Design system shell.** Theme provider, color mode, font loading.
+- **Feature flags.** One flag client, exposed via context.
+- **Observability backbone.** Sentry/Datadog/whatever, initialised once, used everywhere.
+- **Error boundaries** around each MFE mount point, so a broken remote does not blank the whole app.
+
+### The host shell does NOT own
+
+- Domain logic. Ever.
+- Forms, tables, dashboards. Those belong to the domain MFE.
+- Per-route data fetching beyond "load the MFE."
+
+### Code shape
+
+```ts
+// shell/src/app/app.routes.ts
+import { Routes } from '@angular/router';
+import { loadRemoteModule } from '@angular-architects/native-federation';
+import { mfeBoundary } from './platform/mfe-boundary';
+
+export const routes: Routes = [
+  {
+    path: 'catalog',
+    canMatch: [mfeBoundary('catalog')],
+    loadChildren: () =>
+      loadRemoteModule('catalog', './Routes').then(m => m.CATALOG_ROUTES),
+  },
+  {
+    path: 'checkout',
+    canMatch: [mfeBoundary('checkout')],
+    loadChildren: () =>
+      loadRemoteModule('checkout', './Routes').then(m => m.CHECKOUT_ROUTES),
+  },
+  {
+    path: 'profile',
+    canMatch: [mfeBoundary('profile')],
+    loadChildren: () =>
+      loadRemoteModule('profile', './Routes').then(m => m.PROFILE_ROUTES),
+  },
+];
+```
+
+```ts
+// shell/src/app/app.component.ts
+@Component({
+  selector: 'app-shell',
+  standalone: true,
+  imports: [RouterOutlet, Layout],
+  template: `
+    <app-layout>
+      <router-outlet />
+    </app-layout>
+  `,
+  providers: [
+    ThemeService,
+    AuthService,
+    FeatureFlagsService,
+    ObservabilityService,
+  ],
+})
+export class ShellComponent {}
+```
+
+`mfeBoundary('catalog')` is a `CanMatchFn` guard that wraps the remote load in try/catch, reports the MFE name to telemetry, and returns a retry UI if the manifest fetch or bundle load fails. Every federated route is wrapped. No exceptions.
+
+## The leaf widget pattern
+
+A "leaf widget" is a small piece of UI from one MFE rendered inside another. A profile chip in the header. A cart summary on the catalog page. A recommendation strip on the checkout success page.
+
+These are the riskiest pieces of an MFE platform. They are also the most valuable for cross-team UX.
+
+```ts
+// shell/src/app/layout/header.component.ts
+import { Component, signal, inject, ErrorHandler } from '@angular/core';
+import { loadRemoteModule } from '@angular-architects/native-federation';
+
+@Component({
+  selector: 'app-header',
+  standalone: true,
+  imports: [Logo, Nav, ProfileSkeleton],
+  template: `
+    <header>
+      <app-logo />
+      <app-nav />
+      @defer (when chip() !== 'loading'; prefetch on idle) {
+        @if (chip() === 'ready') {
+          <ng-container *ngComponentOutlet="ProfileChip!" />
+        } @else {
+          <!-- silent fallback: render nothing on chip error -->
+        }
+      } @placeholder {
+        <app-profile-skeleton />
+      }
+    </header>
+  `,
+})
+export class HeaderComponent {
+  private errors = inject(ErrorHandler);
+  chip = signal<'loading' | 'ready' | 'error'>('loading');
+  ProfileChip?: Type<unknown>;
+
+  async ngOnInit() {
+    try {
+      const mod = await loadRemoteModule<{ ProfileChipComponent: Type<unknown> }>(
+        'profile',
+        './ProfileChip',
+      );
+      this.ProfileChip = mod.ProfileChipComponent;
+      this.chip.set('ready');
+    } catch (err) {
+      this.errors.handleError({ mfe: 'profile-chip', cause: err });
+      this.chip.set('error');
+    }
+  }
+}
+```
+
+Three rules I now insist on for leaf widgets:
+
+1. **Public contract review.** A leaf widget exposes its `@Input()` surface as a public API. Changes go through a shared contract review with consumer teams.
+2. **Silent error boundaries.** A broken profile chip should not break the header. Render nothing, log to observability, move on.
+3. **Bundle size budget.** A leaf widget &gt; 30 kB gzip is an architecture smell. Enforce in CI.
+
+## MFE platform team responsibilities
+
+MF2 ships the runtime. It does not ship a platform. You still own:
+
+- **The manifest registry.** Where do manifests live, how are they versioned, who can publish, how do rollbacks work. S3 + CloudFront + a small admin UI is enough for most orgs.
+- **The shared dependency policy.** Documented as a contract every MFE must follow. CI-enforced.
+- **The type publishing pipeline.** Producers must emit + publish types on every release. Consumers fetch on install.
+- **The platform SDK.** A tiny NPM package every MFE installs that exposes auth, telemetry, feature flags, fetch wrapper, and any other cross-cutting concern.
+- **The observability schema.** Tag every error, metric, and trace with `mfe: 'catalog' | 'checkout' | 'profile'`. Otherwise debugging is impossible.
+- **Local development experience.** A `dev:host` script that starts the shell with stubbed remotes. A `dev:mfe` script that starts an MFE in isolation. A `dev:all` that starts everything.
+- **The CI/CD baseline.** A reusable pipeline every MFE inherits: lint → test → build → bundle-budget-check → manifest publish → smoke test → promote.
+
+If you are not budgeting for a small platform team (3-5 engineers) to own these, do not start the MFE project. The platform is the deliverable; the MFEs are just consumers.
+
+## Observability across MFEs
+
+The single most under-built piece of every MFE platform I have seen.
+
+### What you need at minimum
+
+- **Errors tagged with MFE name.** Sentry's `setTag('mfe', 'catalog')` is enough. Without it you cannot tell whose error it is.
+- **Web Vitals tagged with active MFE.** INP regression in catalog ≠ INP regression in checkout. Aggregate views hide the truth.
+- **Traces with MFE spans.** Each MFE mount becomes a span. Each remote chunk fetch becomes a child span. Each Server Action / API call inherits the MFE tag.
+- **Resource loading metrics.** Track which manifests are being fetched, which versions, latency per CDN POP.
+
+### A working pattern
+
+```ts
+// shell platform-sdk/observability.ts
+import * as Sentry from '@sentry/angular';
+import { ErrorHandler, Injectable, inject } from '@angular/core';
+
+@Injectable()
+export class MfeErrorHandler implements ErrorHandler {
+  private mfeName = inject(MFE_NAME);
+
+  handleError(error: unknown) {
+    Sentry.withScope((scope) => {
+      scope.setTag('mfe', this.mfeName);
+      scope.setContext('mfe', { name: this.mfeName, version: getMfeVersion(this.mfeName) });
+      Sentry.captureException(error);
+    });
+  }
+}
+
+// In the MFE's bootstrap:
+export const CATALOG_ROUTES: Routes = [
+  {
+    path: '',
+    providers: [
+      { provide: MFE_NAME, useValue: 'catalog' },
+      { provide: ErrorHandler, useClass: MfeErrorHandler },
+    ],
+    loadComponent: () => import('./catalog-root.component').then(m => m.CatalogRoot),
+  },
+];
+```
+
+Every MFE declares its providers at the route level. Every error, span, breadcrumb that fires inside is tagged automatically via the scoped `ErrorHandler`.
+
+## CI/CD per MFE
+
+Each MFE has its own pipeline. The shape that has worked:
+
+```yaml
+# .github/workflows/mfe.yml
+on: [pull_request, push]
+jobs:
+  build:
+    steps:
+      - lint (ng lint)
+      - typecheck (tsc --noEmit)
+      - test (ng test with coverage, Vitest runner)
+      - build (ng build --configuration=production, esbuild builder)
+      - bundle-budget-check (angular.json budgets + size-limit)
+      - publish artifacts to staging CDN
+      - publish manifest to staging registry
+      - run smoke tests against shell + this MFE
+  promote:
+    if: github.ref == 'refs/heads/main'
+    needs: [build]
+    steps:
+      - copy artifacts to production CDN
+      - publish manifest to production registry (canary 5%)
+      - watch error rate, INP, conversion for 30 minutes
+      - promote canary to 100% (manual approval gate)
+      - rollback playbook auto-triggers if metrics breach
+```
+
+The manifest registry is the deployment unit. Each promotion is a JSON write. Rollback is a JSON revert. There is no "redeploy the host" step in the rollback path.
+
+## Performance budgets per MFE
+
+Without budgets, MFE bundles drift up and you discover it after a customer complains. Enforce per-MFE budgets in CI:
+
+```json
+{
+  "catalog": {
+    "initial": { "js": 80000, "css": 12000 },
+    "lazy": { "perChunk": 40000 }
+  },
+  "checkout": {
+    "initial": { "js": 60000, "css": 8000 },
+    "lazy": { "perChunk": 30000 }
+  }
+}
+```
+
+Fail the build on a regression &gt; 5%. Allow override with a justification commit message that ends up in the changelog. Review overrides at the platform retrospective monthly.
+
+> **Field note.** The single best signal I have for a healthy MFE platform is "we do not need to talk about bundle size in code review because the budget already failed." Move the conversation to CI; keep humans for design.
+
+## Auth and feature flags as cross-cutting context
+
+Every MFE needs both. Bake them into the host shell, expose via context, never let an MFE roll its own.
+
+```ts
+// platform-sdk/index.ts
+import { inject, InjectionToken, Signal } from '@angular/core';
+
+export const AUTH = new InjectionToken<AuthService>('AUTH');
+export const FLAGS = new InjectionToken<FeatureFlagsService>('FLAGS');
+export const TELEMETRY = new InjectionToken<TelemetryService>('TELEMETRY');
+
+export function useAuth() { return inject(AUTH); }
+export function useFlag(name: string): Signal<boolean> { return inject(FLAGS).get(name); }
+export function useTelemetry() { return inject(TELEMETRY); }
+```
+
+The MFE imports `@org/platform-sdk`, the SDK reads from DI tokens that the shell provides via its root providers. No MFE ever imports `@org/auth-client` directly. This indirection is the seam that lets the platform team swap the auth provider without coordinating across teams.
+
+## Mobile MFE patterns (NativeScript + Ionic)
+
+A separate conversation but worth flagging. Both NativeScript Angular and Capacitor/Ionic support lazy-loaded remote modules using the same Native Federation adapter as of late 2025, with caveats:
+
+- **Native plugins cannot be federated.** They must be linked in the host app. Federate Angular/JS code only.
+- **OTA updates are the killer use case.** Ship a new MFE without an App Store review, via Capacitor's Live Updates or an Azure/CodePush-style bundle registry.
+- **Bundle delivery matters more.** Mobile networks are flaky; fetch-on-demand for MFEs needs aggressive caching and a fallback to bundled-with-host for first launch.
+- **The shell handles deep linking.** Each MFE registers `Routes`; the shell's router resolves them.
+
+For most teams, mobile MFEs are premature. For a team shipping a super-app (one shell, dozens of mini-apps), they are the right primitive.
+
+## Migration path from monolith to MFE without big-bang
+
+I have not yet seen a successful big-bang MFE migration. The pattern that works is:
+
+### Phase 0 — Decide it is worth it
+
+Run the decision framework. If you cannot honestly check all three boxes, stop. Build a better monorepo instead.
+
+### Phase 1 — Build the platform first
+
+Before extracting any MFE, build:
+
+- The host shell (with the monolith mounted as a single "MFE" for now).
+- The manifest registry.
+- The platform SDK.
+- The observability schema.
+- The CI/CD baseline.
+
+This is 1-2 quarters of work for a small team. Resist the urge to skip it.
+
+### Phase 2 — Extract one MFE as a pilot
+
+Pick the most isolated domain — typically Profile or a new greenfield product. Extract it. Run it in production behind a feature flag. Roll out to 1% → 10% → 100%.
+
+The pilot will surface 80% of the platform gaps you did not anticipate. Fix them before extracting the second MFE.
+
+### Phase 3 — Extract domain by domain
+
+One per quarter, max. Each extraction:
+
+- Defines the domain boundary explicitly. Anything ambiguous stays in the monolith for now.
+- Owns its own data layer or talks to clearly-bounded backend services.
+- Inherits the platform SDK, manifest pipeline, observability schema.
+- Ships behind a feature flag for at least a month.
+
+### Phase 4 — Retire the monolith
+
+When the monolith is just shell-routing-to-MFEs, retire it. The shell becomes the host. The monolith repository goes read-only.
+
+This is a 2-3 year journey for a real codebase. Anyone selling you a faster path is selling you the version of MFEs that gave the pattern a bad name.
+
+## Rollback playbook
+
+The single deployment artefact that matters is the manifest. Keep it boring.
+
+```bash
+# rollback catalog from 2.4.7 to 2.4.6
+mfe-cli manifest:set --env=production --mfe=catalog --version=2.4.6
+# verify
+mfe-cli manifest:get --env=production --mfe=catalog
+# watch
+mfe-cli observability:watch --mfe=catalog --duration=15m
+```
+
+What this does:
+
+- Updates the manifest at `https://manifests.example.com/catalog/manifest.json` to point at version 2.4.6.
+- Edge cache TTL on the manifest is 30 seconds. Within a minute, all new sessions load 2.4.6.
+- Existing sessions on 2.4.7 finish their session uninterrupted.
+- No host redeploy. No CDN invalidation cascade. No CI run.
+
+Rollback should be measurable in seconds, not minutes. If yours is not, the platform is not done.
+
+## Common platform anti-patterns
+
+The ones I have walked teams away from, repeatedly:
+
+- **The "MFE Kubernetes."** A platform so heavily abstracted that creating a new MFE requires reading a 40-page handbook. Optimise for "30 minutes from idea to a stub MFE in production."
+- **The shared global event bus.** "MFEs talk to each other via events!" Pretty diagram, terrible runtime. Couples MFEs through an undocumented API. Avoid; use props or context instead.
+- **The shared NgRx store across MFEs.** Same anti-pattern as the event bus. State that crosses MFE boundaries probably should be in the URL or a backend.
+- **The "let each team pick their framework" platform.** Three Angular versions, two routers, tears. Singleton `@angular/core`. Singleton `@angular/router`. Negotiate everything else.
+- **The platform team that builds features.** Platform teams build platforms. The day they ship a domain feature, the SLAs collapse. Define the boundary in writing.
+- **Manifests in Git.** Sounds nice; ruins your rollback story. Manifests belong in a registry with audit logs and a CLI, not in a PR review.
+
+## Cost analysis: investment vs payoff
+
+Honest numbers from one platform I helped run, mid-sized SaaS, ~12 frontend teams.
+
+### Investment
+
+| Item | Engineering cost |
+| --- | --- |
+| Platform team | 5 engineers × 2 years = 10 engineer-years |
+| Per-team migration cost | 1 sprint per MFE × 12 MFEs = 6 engineer-months |
+| Ongoing platform maintenance | 5 engineers × 0.6 FTE = 3 engineers/year |
+| Tooling (Sentry, manifest registry hosting, CI) | ~$80k/year |
+
+Total upfront: ~12 engineer-years. Total ongoing: ~3 FTE + tooling.
+
+### Payoff
+
+| Metric | Before MFE | After MFE |
+| --- | --- | --- |
+| Deploys per week (org-wide) | 8 | 65 |
+| Mean lead time (commit → prod) | 6 days | 9 hours |
+| Cross-team coordination meetings per sprint | 14 | 3 |
+| "Blocked on another team's release" incidents per quarter | 22 | 1 |
+| Single broken-deploy regressions | 4-6 / quarter | 0-1 / quarter |
+| Rollback time | 35 min (CI cycle) | 90 sec (manifest swap) |
+
+The payoff is operational. The cost is engineering. For a team of 12 frontend engineers, MFEs were probably overkill — that org should have done a monorepo. For a team of 80, it was a clear win.
+
+### The break-even
+
+In my experience, MFEs start to pay back around 8-10 product teams shipping to one frontend. Below that, the platform tax exceeds the coordination savings. Above that, the lines cross fast.
+
+## Hiring and team-shape implications
+
+A few realities to plan for:
+
+- **You need a platform team.** Build it before the first MFE. Staff it with senior engineers who will say no a lot.
+- **Domain teams should be full-stack-ish.** An MFE team that owns frontend and the backend services it calls ships much faster than one with a handoff.
+- **Tech leads need cross-MFE awareness.** Pick three senior engineers across MFEs and give them a weekly platform forum. They become your early-warning system.
+- **Hiring narrative shifts.** "We have a frontend platform" attracts senior frontend engineers who have battled monorepos. Lead with it in JDs.
+
+## The honest summary
+
+Module Federation 2 is genuinely better than what came before. Type safety, manifest discovery, runtime parity, and dynamic remotes close most of the wounds the first generation left.
+
+But MFEs are still a _team-shape_ tool, not a _frontend-architecture_ tool. If your team-shape does not demand independent deploys at domain granularity, the right answer in 2026 is a well-organised monorepo with route-level code splitting. It will be faster, simpler, cheaper, and you can always evolve toward MFEs later if the org grows into them.
+
+If your team-shape _does_ demand it, MF2 is now the cleanest path to get there — provided you fund the platform that surrounds it. That is the trade-off, end to end. Pick deliberately.
+
+---
+
+Building or untangling a micro-frontend platform right now? I have done a few of these — [drop me a line](/#contact).

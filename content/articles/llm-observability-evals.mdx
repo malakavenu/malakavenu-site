@@ -1,0 +1,469 @@
+---
+title: "LLM observability: traces, evals, cost, drift — the four-dimension model"
+description: "APM tells you the request returned 200. With LLMs, a 200 can still hallucinate. Here's the observability discipline — dashboards, evals, cost attribution, drift detection, on-call playbooks — that catches what APM can't."
+date: '2026-04-08'
+updated: '2026-04-08'
+category: 'AI Evals'
+tags: ['Observability', 'Evals', 'LLM', 'Production AI', 'LangFuse', 'Braintrust']
+author: 'Malaka Venugopal Reddy'
+---
+
+The lesson every team learns the hard way: traditional APM is necessary but not sufficient for LLM systems. Your dashboard says p95 latency is 1.4s and error rate is 0.02%. Meanwhile, the model has been quietly hallucinating product names for two weeks because no one was checking output quality, only HTTP status codes.
+
+Here's the observability model that catches the things APM can't see — and the operational discipline that turns that visibility into actual decisions.
+
+## The four dimensions
+
+After running this on three different production LLM systems, the framing that's stuck:
+
+| Dimension | What it answers | Audience | Cadence |
+|---|---|---|---|
+| **Tracing** | _What happened?_ The full request flow: which prompt, which model, which tools, which retries. | On-call, debug | Always-on |
+| **Evals** | _Was it any good?_ Did the output meet quality criteria, regardless of whether it returned 200. | Product, ML | Every PR + nightly |
+| **Cost** | _What did it cost?_ Tokens in, tokens out, $ per request, $ per user, $ per feature. | Eng leadership, finance | Real-time + daily |
+| **Drift** | _Has behaviour changed?_ Same input, different output over time — model updates, prompt edits, data drift. | ML, on-call | Weekly + alert-driven |
+
+Each dimension is a different tool, a different audience, and a different operating discipline. Get one wrong and the others compound the damage.
+
+> **Field note:** the difference between teams that operate LLM systems calmly and teams that don't is rarely model choice or prompt quality. It's whether all four dimensions are wired up before traffic ramps.
+
+## Tracing: more than spans
+
+Traditional spans don't capture what matters in an LLM system. The trace must include, at minimum:
+
+- The exact prompt sent (after templating, with all context).
+- The exact response received (full text, not just first chunk).
+- Tool calls with arguments and results.
+- Token counts in / out, per call.
+- Model + version (down to the snapshot date).
+- Temperature, top_p, any other inference params.
+- A request_id that links to the upstream user action.
+- A user-id hash (never the raw id) and tenant id.
+- The prompt template id and version.
+- The eval verdict, if available.
+- The cost in USD.
+
+This is more data than a typical APM trace. It's also non-negotiable. The first time you debug a "the model said something weird" report from a customer, you will need every field.
+
+```ts
+import { trace, SpanKind } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('llm-app');
+
+await tracer.startActiveSpan('llm.completion', {
+  kind: SpanKind.CLIENT,
+  attributes: {
+    'llm.prompt_template': 'support_assistant.v3',
+    'llm.prompt_template.version': '2026.03.15.1',
+    'llm.prompt_rendered': renderedPrompt,
+    'llm.model': 'claude-sonnet-2026-03-15',
+    'llm.temperature': 0.2,
+    'llm.tokens_in': usage.promptTokens,
+    'llm.tokens_out': usage.completionTokens,
+    'llm.tool_calls.count': toolCalls.length,
+    'llm.tool_calls': JSON.stringify(toolCalls.map(tc => ({
+      name: tc.name,
+      args_preview: truncate(JSON.stringify(tc.args), 1024),
+    }))),
+    'llm.cost_usd': computeCost(usage, model),
+    'app.request_id': requestId,
+    'app.tenant_id': tenantId,
+    'app.feature': 'support-chat',
+    'app.user_id_hash': hashUserId(userId),
+  },
+}, async (span) => {
+  try {
+    const result = await runCompletion();
+    span.setAttribute('llm.response', truncate(result.text, 8192));
+    span.setAttribute('llm.finish_reason', result.finishReason);
+    return result;
+  } finally {
+    span.end();
+  }
+});
+```
+
+Pick one tracing tool. Langfuse and Braintrust both do this well. So does plain OTel with the right schema. The choice matters less than the discipline of capturing the full set.
+
+### Sampling without losing the plot
+
+Three rules that have held up across products:
+
+1. **Production: 100% sampling.** Disk is cheap. The trace you skip is the one the customer screenshots.
+2. **Non-prod: 10–20% sampling.** Enough to debug; not enough to notice on the bill.
+3. **Eval-failed traces: always retain.** Override sampling on any span flagged by the eval suite. These are the highest-value traces for debugging.
+
+## Evals: the dimension everyone underbuilds
+
+Evals are where most teams' LLM observability collapses. Too often I see one of:
+
+- A pile of assertions that haven't been touched in six months.
+- A "we'll do evals later" that becomes "we shipped a regression."
+- A hand-graded spreadsheet that nobody updates.
+- An LLM-as-judge that scores everything 4/5 because the prompt isn't calibrated.
+
+The shape that's actually shipped, in the order it should be built:
+
+### 1. A small, curated golden dataset
+
+100–500 prompts that represent your real workload, each with an expected behaviour. Not just inputs — _expectations_. "The model must mention the customer's plan tier" is an expected behaviour. "The model must not invent a product name not in the catalogue" is an expected behaviour.
+
+Sources for the golden dataset:
+
+- Real production traces, sampled across personas and intents.
+- Edge cases reported by support (these are gold; treat them as such).
+- Adversarial prompts (jailbreak attempts, prompt injection probes).
+- Boring-but-frequent prompts. The 80% case matters more than the 1% spectacle.
+
+### 2. Mixed eval types
+
+Not every behaviour needs the same checker:
+
+- **Deterministic checks** for things that have a right answer. Did it return valid JSON? Did it call the right tool? Are the citations from the allowed set?
+- **LLM-as-judge** for quality dimensions. Was the tone professional? Did it cite a source? Did it answer the question?
+- **Embedding-similarity checks** for "the answer is similar to a known good one."
+- **Human review sampling** at low rate (~1%) for the things judges miss. Calibration check.
+
+> **Field note:** if your LLM-judge consistently scores everything within a half-point of the same number, the judge prompt is broken. Calibrate against a hand-graded subset until the judge's distribution matches the human distribution within ±0.5.
+
+### 3. Eval rows as code
+
+Eval rows live in the repo as JSONL. Reviewed in PRs. Versioned with the prompts they test:
+
+```jsonl
+{"id":"sup-014","input":"my last 3 invoices please","expected_tool":"listInvoices","expected_args_subset":{"limit":3},"forbidden_tools":["showInvoice","runCheckout"],"persona":"existing_customer"}
+{"id":"sup-015","input":"what's my password","expected_response_contains":["cannot share","reset"],"expected_response_excludes":["password is"],"persona":"any"}
+{"id":"sup-016","input":"refund order 9821","expected_tool":"createRefundRequest","expected_args_subset":{"orderId":"9821"},"requires_human":false,"persona":"existing_customer"}
+```
+
+### 4. Run on every change
+
+Prompt edit → eval run. Model swap → eval run. Tool descriptor change → eval run. The eval suite is your test suite. Treat it that way.
+
+```yaml
+# .github/workflows/llm-evals.yml
+name: LLM Evals
+on: [pull_request]
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm run evals -- --suite support-chat --threshold 0.85
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const report = require('./eval-report.json');
+            const body = formatEvalDelta(report);
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+```
+
+The PR comment shows: pass rate before, pass rate after, per-category deltas, and links to the failing rows. No "merge if green"; "merge if no per-category regression."
+
+### 5. Keep eval results forever
+
+Trend lines on eval pass rates are how you spot drift before users do. Store every run keyed by `(suite, prompt_version, model_version, commit_sha)`.
+
+## Cost: the dimension that actually has teeth
+
+LLM cost is the metric most likely to wake you up at 3am if you don't instrument it. Three patterns that have saved real money:
+
+### Per-feature cost attribution
+
+Tag every LLM call with the feature that triggered it. Your dashboard should show "Search costs us $X/day, Onboarding costs us $Y/day, Chat costs us $Z/day." Without this, you can't have an informed conversation about which features to optimise.
+
+```ts
+type CostTag = {
+  feature: 'search' | 'onboarding' | 'chat' | 'summarisation' | 'routing';
+  tenant_id: string;
+  user_id_hash: string;
+  prompt_template: string;
+  prompt_version: string;
+  model: string;
+  surface: 'web' | 'mobile' | 'api';
+};
+```
+
+Every span gets one. Aggregations roll up by tag dimension. The first time leadership asks "what are we spending on Onboarding," you can answer in 30 seconds, not 30 hours.
+
+### Per-user / per-session cost ceilings
+
+A bug in your agent loops 50 times. Without a cap, that's a $40 invoice for one user's confused click. With a per-session token cap (a hard ceiling, not a soft warning), it's an aborted run and a clean error.
+
+```ts
+async function withCostCeiling<T>(
+  ctx: { sessionId: string; tenantId: string },
+  ceilingUsd: number,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const used = await costStore.getSessionCostUsd(ctx.sessionId);
+  if (used >= ceilingUsd) {
+    throw new BudgetExceededError(ctx.sessionId, used, ceilingUsd);
+  }
+  const result = await fn();
+  await costStore.incrementSessionCostUsd(ctx.sessionId, lastCallCostUsd());
+  return result;
+}
+```
+
+Tier the ceilings by plan: $0.10/session for free, $1/session for pro, $10/session for enterprise. Track ceiling-hit rate as a product signal, not just an ops one.
+
+### Cost-aware routing
+
+Not every call needs the most expensive model. A classifier in front of your LLM that routes "easy" requests to a cheap model and "hard" ones to the expensive one can cut bills by 40–60% with no quality regression. The classifier itself is cheap to run and cheap to evaluate.
+
+A worked example from a recent product:
+
+| Route | Volume share | Model | Median cost | Median quality (judge 1–5) |
+|---|---|---|---|---|
+| Classifier | 100% | Haiku-class | $0.0009 | n/a (classifier) |
+| "Easy" path | 62% | Haiku-class | $0.004 | 4.4 |
+| "Hard" path | 33% | Sonnet-class | $0.038 | 4.6 |
+| "Expert" path | 5% | Opus-class | $0.21 | 4.8 |
+| Blended | 100% | mixed | $0.026 | 4.5 |
+
+Blended cost dropped from $0.041 (always-Opus) to $0.026 — a 37% reduction — with measured quality unchanged. The classifier paid for its own eval suite within a week of shipping.
+
+## Drift: the dimension that catches silent failures
+
+Drift is the slowest-moving but most insidious failure mode. Three forms:
+
+### Model drift
+
+The provider rolled out a new model snapshot. Your prompts still work. Your outputs are subtly different. You discover this when a customer complains about tone change three weeks in.
+
+Defence:
+
+- Pin to dated model snapshots in production (never `latest`).
+- Run evals on every snapshot upgrade.
+- Compare distributions, not just pass rates. A pass rate that holds but a length distribution that shifts 30% is a real change.
+- Treat snapshot upgrades as deploys, with rollback plans.
+
+### Prompt drift
+
+Someone tweaked a prompt to fix one edge case. It introduced regressions in five others. Nobody noticed because the eval suite ran on a CI server that nobody looked at.
+
+Defence:
+
+- Gate prompt PRs on eval pass rate.
+- Display the per-category delta in the PR.
+- Require sign-off on regressions of >2% in any category.
+- Auto-revert if production eval pass rate drops more than X% within 24h of a deploy.
+
+### Data drift
+
+Your retrieval corpus grew. Your average retrieved chunk is now longer. Your prompts hit context limits more often, get truncated more often, lose relevance more often.
+
+Defence:
+
+- Track distributions of input shapes (length, complexity, topic) over time. Alert on shifts.
+- Track tool-call argument distributions. A tool that used to receive 5-character ids and now receives 60-character ids has a new failure mode you haven't tested.
+- Re-run evals on a synthetic dataset shifted to the new input distribution.
+
+## A tooling comparison matrix
+
+The honest version of "which tool should I use." All of these can do the job; the right one depends on your team and your starting point.
+
+| Tool | Strength | Weakness | Best for |
+|---|---|---|---|
+| **Langfuse** | Open source, self-hostable, great eval+trace integration | Self-host requires ops time | Teams that want full control |
+| **Braintrust** | Best-in-class eval workflow, prompt playground | Tracing surface less mature than Langfuse | Eval-heavy teams, ML-first orgs |
+| **LangSmith** | Tight LangChain/LangGraph integration | Strongest when you're already in that ecosystem | Teams on the LangChain stack |
+| **Helicone** | Zero-config tracing via proxy | Eval surface is thinner | Teams that want immediate visibility with minimal code |
+| **Plain OTel + Grafana** | You already know it; full ownership | You build the eval surface yourself | Teams with strong observability culture and one engineer to spare |
+| **Datadog LLM Observability** | Lives next to your existing infra metrics | Less prompt-engineering ergonomics | Datadog shops |
+
+Pick one. Switching later is annoying but possible; running two is worse than running the wrong one.
+
+## CI integration for eval gates
+
+The shape that survives team growth:
+
+```yaml
+# .github/workflows/llm-pr.yml
+name: LLM PR Checks
+on:
+  pull_request:
+    paths: ['prompts/**', 'lib/llm/**', 'evals/**']
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - name: Run eval suite (cached)
+        run: npm run evals:ci
+      - name: Comment on PR with delta
+        run: npm run evals:report -- --base origin/main
+      - name: Fail if any category regressed >2%
+        run: npm run evals:gate -- --max-regression 0.02
+```
+
+What I always include:
+
+- **Per-category gate**, not just an aggregate. An aggregate pass rate masks the worst regressions.
+- **Cost report** alongside quality. A PR that adds 30% cost for 1% quality is not free; the reviewer should see both.
+- **A delta against `main`**, not an absolute number. Eval scores drift; the question that matters is "did this PR make things worse."
+- **Cached responses for unchanged rows.** Eval runs are expensive; cache aggressively, bust on prompt or model change.
+
+## Alert design
+
+The taxonomy I use, in priority order:
+
+| Severity | Trigger | Action | Notify |
+|---|---|---|---|
+| P1 | Eval pass rate &lt;70% for 1h, OR cost &gt;3× baseline for 30m | Page on-call | PagerDuty |
+| P2 | Eval pass rate -10% from 7d avg, OR ceiling-hit rate >5% | On-call ack | Slack + email |
+| P3 | Drift detector: input distribution shift | Ticket for ML | Slack |
+| P4 | Single feature -3% pass rate | Daily digest | Email |
+| Info | Cost trend lines, anomalies | Weekly review | Dashboard |
+
+Two anti-patterns I see often:
+
+- **Alerting on absolute eval pass rate.** Pass rates differ across features. Alert on _delta from baseline_, not absolute.
+- **Alerting on individual trace failures.** The signal is in distribution shifts. Single failures are noise.
+
+## A sample dashboard layout
+
+A short opinion: most LLM observability dashboards have too many graphs nobody reads. The one I've built three times now and that actually gets opened daily has five tiles:
+
+```
+┌─────────────────────────────┬────────────────────────────┐
+│  1. Eval pass rate          │  2. Cost per request       │
+│     by feature, last 7d     │     by feature, last 7d    │
+│     [stacked sparklines]    │     [sparklines + totals]  │
+├─────────────────────────────┼────────────────────────────┤
+│  3. p95 latency             │  4. Top 5 highest-cost     │
+│     by feature              │     requests, last 24h     │
+│     [sparklines]            │     [table → click trace]  │
+├─────────────────────────────┴────────────────────────────┤
+│  5. Drift alerts (last 14d)                              │
+│     - input length distribution                          │
+│     - tool-call distribution                             │
+│     - model snapshot deltas                              │
+└──────────────────────────────────────────────────────────┘
+```
+
+Five tiles. Five conversations a week. Each one tied to a specific action.
+
+## On-call playbook for LLM incidents
+
+Most on-call rotations weren't designed for LLM-specific incidents. The playbook I hand to a new on-call rotation:
+
+### "The model is saying something weird"
+
+1. Pull the trace. Confirm prompt template version and model snapshot.
+2. Check the eval pass rate for that feature in the last hour. Has it dropped?
+3. Check for recent prompt PRs (last 24h). Roll back if a regression is plausible.
+4. Check for provider model snapshot changes. Pin to the previous snapshot if so.
+5. If neither, pull a sample of the last 100 inputs. Has the input distribution shifted?
+
+### "Costs spiked"
+
+1. Group recent spend by feature, tenant, and template. Find the outlier.
+2. Pull the highest-cost traces in the spike window. Look for: looped tool calls, oversized inputs, unbounded `maxSteps`.
+3. If a single tenant: enforce a tighter ceiling. Notify them.
+4. If a single feature: pause it via feature flag, fix root cause, re-enable.
+5. If a single template: roll back the prompt PR.
+
+### "Latency spiked"
+
+1. Confirm it's the LLM and not your app. p95 in your stack vs provider-reported p95.
+2. Check provider status page.
+3. Check input size distributions. A change in input length will move latency.
+4. Check tool execution times. A slow tool will look like LLM latency in a naive trace.
+
+### "A customer complained about tone / hallucination"
+
+1. Reproduce from the trace. Capture the exact rendered prompt.
+2. Add the input to the eval suite as a row. Mark it expected-fail until fixed.
+3. Adjust prompt or guard, run evals, ship.
+4. Monitor production for similar inputs over the next 24h.
+
+## Common observability anti-patterns
+
+- **One dashboard for everything.** Different audiences need different cuts. Build one for engineering, one for product, one for finance.
+- **Tracing everything but searching nothing.** Capture is half the job. Make sure you can query by tenant, by template, by tool, by eval verdict.
+- **LLM-as-judge with no calibration.** Without a hand-graded calibration set, the judge becomes a bias amplifier.
+- **Eval suite full of things the model already gets right.** Boring rows. Replace with hard rows quarterly; the suite must remain hard or it stops finding things.
+- **Costs charged to "platform" instead of to the feature.** Hides the real economics. Tag at the call site, every time.
+- **Tracing PII.** Hash user ids. Truncate prompts to remove obvious PII. The trace store is a privacy artefact; treat it like one.
+- **No retention policy.** Storage is cheap, but the privacy review will catch you. Tier retention by trace age and PII content.
+- **Alerts on things nobody acts on.** Every alert needs a runbook. If it doesn't, delete the alert.
+
+## Scaling observability past N agents
+
+The interesting thing happens when you go from "one LLM-backed feature" to "ten agents across five products."
+
+### Span volume
+
+Multi-agent systems multiply span counts. A 6-agent request with 3 tool calls each can produce 30+ spans. At 100 RPS, that's 3,000 spans/second per request type. Plan for it:
+
+- Aggregate at the agent level, not the span level, for dashboards.
+- Sample heavy-tail spans (the boring ones) more aggressively than the "first turn" spans.
+- Use exemplar-based sampling: keep all spans for one full trace per N, summary metrics for the rest.
+
+### Eval combinatorics
+
+When you have N agents in a workflow, you need N eval suites _and_ a routing eval suite. Don't try to evaluate the whole workflow as one box; the failure modes will be unattributable. Per-agent suites + a routing eval + a small end-to-end smoke set is the shape that scales.
+
+### Cost attribution at depth
+
+Per-feature isn't enough once you have agents calling agents. Add `parent_span_id`, propagate the originating feature tag down the call tree, and aggregate at any level. The question "what does the routing agent cost in the support workflow" should have a one-query answer.
+
+### Cross-agent drift
+
+Different agents drift independently. A tonal drift in your composer can mask a quality regression in your retriever, because the composer's tone makes the regressed retrieval _sound_ fine. Eval per agent, not just per feature. Drift detection per agent, not just per workflow.
+
+## What I'd tell a junior building observability for the first time
+
+A short memo:
+
+- Start with tracing. Get the full prompt + response captured for every call.
+- Add per-feature cost attribution second. Without it, every cost conversation is speculation.
+- Build the eval suite third. Start with 50 rows of real production prompts.
+- Wire eval gates into PRs fourth. Don't try to do this on day one; the eval suite must be stable first.
+- Drift detection comes last. It's the slowest-paying investment but the one that prevents the incident you'd never have caught otherwise.
+- Pick one tool, even if it's the "wrong" one. Wrong-tool-with-discipline beats right-tool-with-discipline-coming-eventually.
+
+## A short FAQ
+
+**Q: Do I need all four dimensions if I'm pre-launch?**
+
+Yes. Tracing and cost are non-negotiable from day one. Evals can start at 20 rows. Drift detection can be a weekly diff in week one and an automated job by month three. The shape matters more than the volume.
+
+**Q: How big should the eval suite be?**
+
+Small enough to run in CI in &lt;10 minutes; large enough to cover your real intents. 100–500 rows for most products. Quality of rows &gt;&gt; quantity.
+
+**Q: Should I build my own eval framework?**
+
+No. Use Langfuse / Braintrust / LangSmith. The plumbing is undifferentiated; spend your time on rows and prompts.
+
+**Q: How do I justify the engineering investment in observability to leadership?**
+
+Frame it as cost control and incident prevention. "We will detect a 20% cost regression in 1 day instead of 30; we will catch quality regressions in PR instead of in customer support." Translate to dollars; the conversation gets short.
+
+**Q: What about privacy / GDPR concerns with storing prompts?**
+
+Hash user identifiers. Truncate or redact PII before storage. Tier retention by trace age. Document in your DPIA. The "we don't know what we sent the model" answer is unacceptable in a regulated environment; the alternative is observability with the right hygiene.
+
+**Q: How does observability change for streaming responses?**
+
+Capture the full assembled response, not just the first chunk. Capture stream interruptions. Track time-to-first-token alongside total latency; the user perceives the former.
+
+## The honest summary
+
+A 200 status code from an LLM endpoint is the start of the question, not the end of it. The systems that hold up in production instrument all four dimensions — traces, evals, cost, drift — from week one, not as a "phase 2" deliverable.
+
+The cost of building this is one engineer-week. The cost of not building it is the next outage that nobody can explain.
+
+---
+
+Building observability into an LLM system right now? I write more on this — [browse the rest](/articles).

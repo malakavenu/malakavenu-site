@@ -1,0 +1,414 @@
+---
+title: "Figma Make is a real product now — what that means for design engineers"
+description: "Prompt-to-app inside Figma, with swappable models and your design system attached. The interesting part is what it does to the role, not the artefact."
+date: '2026-04-10'
+updated: '2026-04-10'
+category: 'AI for Design'
+tags: ['Figma', 'Figma Make', 'AI', 'Design Systems', 'Design Engineering']
+author: 'Malaka Venugopal Reddy'
+---
+
+Figma Make went generally available this year and the discourse went straight to "is it a Cursor competitor?" That misses what's actually changed. Make isn't trying to replace your IDE. It's quietly turning Figma into a prototyping environment that ships React + Tailwind + auth + a database, with your design system as the substrate.
+
+The interesting question isn't whether Make replaces engineers. It's what it does to the seam between design and engineering — which has been quietly broken for a decade.
+
+I've been using Make in production work for the last two quarters: shipping marketing surfaces, prototyping onboarding flows, prototyping internal tools that became real internal tools. This is the long-form version of every "what did you actually learn?" Slack thread I've had since GA.
+
+## What Make actually is, in one paragraph
+
+A panel inside Figma where you can describe a UI, an interaction, or a small app, and it generates running code — React + Tailwind by default, with optional auth and a Supabase-backed DB. The output is a real, deployable web app you can edit further, either in Make or by exporting to a repo. It's swappable between Claude and Gemini for the underlying generation. With Make Kits, your design system components feed the AI directly, so the output is on-system instead of generic Tailwind.
+
+That last sentence is the whole story. Everything else in this article is what falls out of it.
+
+## The full capability survey, without the marketing gloss
+
+Six months in, here's what Make actually does well, what it does adequately, and what it doesn't do at all.
+
+### What Make does well
+
+- **Generates a working React + Tailwind app from a prompt.** Not a static page. Routing, state, forms, list views, detail views, modals — all wired.
+- **Persists data via Supabase.** A real Postgres table behind the scenes. Auth (email/password, magic link, OAuth) is one toggle.
+- **Honours attached design context.** When you attach Figma frames or Make Kits, the output composes from those primitives instead of inventing.
+- **Iterates in the same panel.** "Make the empty state warmer." "Add a toast when save succeeds." "Move the CTA above the fold." Tight loop, low friction.
+- **Exports to repo.** Clone-able codebase, not a captive sandbox. The escape hatch matters more than the ergonomics.
+
+### What Make does adequately
+
+- **Component decomposition.** It will produce a working file tree, but the boundaries it picks rarely match what you'd choose. Acceptable for prototypes; refactor before production.
+- **State management.** Local state, lifted state, simple context — fine. Anything beyond that and you'll want to rewrite.
+- **Accessibility.** Passable defaults. Real audits still required.
+- **Form validation.** Basic happy path is good. Async validation, server-side errors, multi-step flows — patchy.
+
+### What Make doesn't do
+
+- **Architectural decisions.** Pick the data model, draw the dependency graph, decide what's a server component vs client. That's still you.
+- **Long-lived applications.** Anything past a third or fourth iteration starts to drift. Make is a prototyping medium; the artefact wants to be exported.
+- **Cross-feature coherence.** Each prompt is an island. Maintaining product-wide consistency is on you (or your DS).
+- **Performance work.** Bundle splitting, image optimisation, caching strategy — not its world.
+- **Production hardening.** Auth edge cases, rate limiting, observability, billing flows. None of this.
+
+> **Field note:** Make's output is closer to "what a strong intern would build in a day" than "what a senior engineer would ship." That framing helps calibrate where it adds value and where it doesn't.
+
+## The prompt-to-app loop, the way it actually goes
+
+Watching designers use Make for the first time vs the third time vs the tenth time is instructive. The loop converges on a specific shape.
+
+```text
+1. Sketch the surface in Figma using DS components.
+2. Attach the frame(s) as Make context.
+3. Prompt: "Build this onboarding flow. Use email + password auth.
+   Persist user profile to Supabase. Three steps: email, profile, plan."
+4. Wait 30–90 seconds. Get a running app at a real URL.
+5. Iterate in plain English: "Add a back button to step 2."
+6. Export to repo when the prototype hits the design-validation goal.
+7. In the repo, refactor: route structure, real auth, real DB schema,
+   error states, telemetry. Ship.
+```
+
+Two things this loop changes:
+
+- The "design-to-engineering handoff" no longer exists as a discrete stage. The artefact at the end of design _is_ working code.
+- Stakeholder validation moves from "click through Figma" to "click through a real app on a real URL with real form submissions." Feedback gets specific overnight.
+
+The implication for engineering velocity is non-trivial. The "build the prototype, get feedback, redesign, rebuild" loop collapses to a single iteration cycle.
+
+## Make Kits — the actual unlock
+
+Without Make Kits, an AI generation tool produces what it knows: generic Tailwind, generic patterns, generic colors. The output looks like every other AI demo. You'd never ship it.
+
+With Make Kits, the AI is constrained to compose from _your_ components, with _your_ tokens, in _your_ patterns. The output looks like your product because it _is_ your product, just assembled differently.
+
+A Make Kit is essentially a packaged manifest of your DS:
+
+```json
+{
+  "kit": {
+    "name": "acme-ds",
+    "version": "2.4.1",
+    "components": [
+      {
+        "name": "Button",
+        "import": "@acme/ui/button",
+        "variants": ["primary", "secondary", "ghost", "destructive"],
+        "sizes": ["sm", "md", "lg"],
+        "use_when": "User-initiated action. Primary for the main action; only one Primary per surface.",
+        "do_not_use_when": "Navigation between pages — use NavLink instead.",
+        "examples": ["<Button variant=\"primary\">Save</Button>"]
+      },
+      {
+        "name": "Card",
+        "import": "@acme/ui/card",
+        "props": ["title", "description", "actions"],
+        "use_when": "Grouping related content with a header. Default gutter is 16px.",
+        "examples": ["<Card title=\"Plan\" actions={<Button>Upgrade</Button>}>...</Card>"]
+      }
+    ],
+    "tokens": {
+      "color.brand.primary": "var(--color-brand-primary)",
+      "spacing.md": "var(--space-3)"
+    },
+    "patterns": [
+      {
+        "name": "FormLayout",
+        "use_when": "Any multi-field form. Stacks fields with 16px gap and uses 24px section gaps."
+      }
+    ]
+  }
+}
+```
+
+Three things to notice in that shape:
+
+1. **`use_when` and `do_not_use_when` are first-class fields.** This is the single highest-ROI piece of metadata you can add to a component description for AI consumption. Same lesson I keep relearning with MCP tool descriptions.
+2. **Tokens are referenced by semantic name**, not raw value. The AI generates `bg-brand-primary`, not `bg-[#5C5CFF]`. Output stays themable.
+3. **Patterns are exposed as composed components**, not "here's how three components fit together." The AI doesn't have to figure out composition rules — the composed primitive enforces them.
+
+> **Rule of thumb:** if you wouldn't trust a strong intern to compose the right output from your DS docs, the AI won't either. Fix the docs first; everything else is downstream.
+
+### Building a Make Kit from an existing DS
+
+Practical sequence I've used twice now:
+
+1. **Inventory.** List every public component, every variant, every prop. Most teams discover here that 30% of their "official" components aren't documented anywhere.
+2. **Triage.** Drop deprecated components from the kit. The AI will use what's there; if you give it `LegacyButton`, it'll happily generate `<LegacyButton />`.
+3. **Annotate.** For every component, write `use_when` (one sentence) and `do_not_use_when` (one sentence). This is the work that pays.
+4. **Pattern surface.** List the 8–15 composed patterns your product uses everywhere — `FormLayout`, `PageHeader`, `EmptyState`, `ConfirmDialog`. Expose them as kit entries even if internally they're just JSX recipes.
+5. **Token map.** Confirm every visual token in the DS has a Tailwind/CSS-var equivalent and surface the mapping.
+6. **Examples.** One canonical usage example per component. Two or three for anything with non-obvious composition.
+7. **Iterate on real prompts.** Run 10 representative prompts against the kit. Where the output drifts from your product, the kit is missing something. Fix; repeat.
+
+A first-pass kit takes 1–2 weeks for a mature DS. Maintenance is small after that — every new component gets a kit entry as part of the merge checklist.
+
+## Make Attachments and context shaping
+
+Beyond Make Kits, the per-prompt context is shaped through **Attachments**: Figma frames, screenshots, PDFs, even short videos. The patterns that work:
+
+- **Attach the destination screen, not the inspiration.** "Here's where this should land in our product" beats "here are three screens I like."
+- **Attach the empty state, the populated state, and the error state.** The AI will infer the happy path; it won't infer the edge cases unless you show them.
+- **Attach the data shape**, not just the UI. A short JSON sample of what the API returns dramatically improves form generation, table rendering, and conditional logic.
+- **Keep attachments tight.** 3–5 frames per prompt outperforms 20. Same model context economics that govern every other LLM workflow.
+
+> **Field note:** the prompt is one input. The kit is the constraint. Attachments are the situation. Treat them as three different levers, not one big "give the AI more stuff" pile.
+
+## Inference routing inside Figma — Claude 4.6 vs Gemini 3
+
+Make lets you swap the underlying model. Claude 4.6 for one generation, Gemini 3 for another. After enough A/B work, the strengths are different in patterned ways:
+
+| Dimension | Claude 4.6 in Make | Gemini 3 in Make |
+|---|---|---|
+| Structured composition from a kit | Strong — fewer drifts from the system | Good, occasionally invents |
+| Visual ambition | Conservative; safe defaults | More adventurous; sometimes great, sometimes weird |
+| Multi-file refactors | More consistent across files | Higher variance |
+| Iteration following ("now do X to it") | Excellent — keeps prior choices | Solid, but can rebuild surprising amounts |
+| Tailwind idiom | Idiomatic | Idiomatic, occasionally over-uses arbitrary values |
+| State logic | Strong on simple flows | Strong, slightly more verbose |
+| First-pass aesthetic on a blank prompt | Tasteful | Often more visually striking |
+
+The way I use this in practice:
+
+- **First draft, no kit:** Gemini, for the ambition.
+- **First draft, with a strong kit:** Claude, for the discipline.
+- **Refining an existing draft:** stay on whichever model produced it. Switching mid-stream resets stylistic decisions.
+- **Multi-screen flow, consistency matters:** Claude.
+- **Single hero surface, brief is "make this beautiful":** Gemini.
+
+Neither is universally better. The fact that you can switch is the point. **Inference routing is going to be a real skill** — knowing which model to reach for, for which kind of task, in which context. It's not deep; it's a discipline. Treat it the way you'd treat picking the right linter or the right test framework.
+
+## The variables-to-CSS pipeline that makes Kits actually work
+
+Make Kits assume your tokens map cleanly to runnable CSS. The pipeline I recommend:
+
+```text
+Figma Variables
+  → exported via Variables2Code or Tokens Studio
+  → Style-Dictionary build step
+  → emits: CSS custom properties + Tailwind theme + JSON
+  → consumed by:
+      - your product codebase (Tailwind config)
+      - your Make Kit (token references)
+      - your Storybook / docs site
+```
+
+Three rules to keep this sane:
+
+1. **Single source of truth in Figma.** Variables live there; everything else is generated.
+2. **Three-tier naming.** `primitive` (raw values), `semantic` (intent: `color.brand.primary`), `component` (`button.bg.primary`). Components consume semantic; semantic consume primitive.
+3. **CI on tokens.** A pull request that changes a primitive without a corresponding semantic update fails the build. The compounding chaos of unsynchronised tokens is the single biggest reason DS-AI integrations break six months in.
+
+When this pipeline is healthy, switching themes (light/dark, brand variants, white-label tenants) is a token-swap, not a code change. The AI generates code that respects this without being told, because every value it has access to is already a token.
+
+## The weekly cadence I've landed on
+
+Concrete schedule for a small product team using Make in production:
+
+- **Monday — Triage.** What surfaces are we shipping this week? Which are good Make candidates (new flows, prototypes, internal tools) vs not (deep refactors, perf work, complex backend integrations)?
+- **Tuesday — Prompt session.** Designer + design engineer pair for a focused 90 minutes. 3–5 prompts max, each ending with a working artefact at a URL.
+- **Wednesday — Stakeholder review.** Real URLs, real interactions. Feedback comes back specific because the artefact is real. Iterate same-day in Make.
+- **Thursday — Export + integrate.** Pull the Make output into the repo. Refactor for the production codebase. Add real auth, real telemetry, real error handling.
+- **Friday — Polish + ship.** Last-mile craft: micro-interactions, focus states, animation timing, accessibility audit.
+
+This is one design engineer's week. A team without a design engineer can't run this loop coherently — the export-and-integrate stage falls into a gap between disciplines. Which is the real reason the role is becoming a hiring priority, not because Make exists but because Make's output needs an owner.
+
+## Comparing Make vs Cursor vs v0 vs Lovable
+
+The AI-design-tool landscape is no longer a single category. Here's how I think about the four most-used options:
+
+| Tool | Primary medium | Strongest on | Weakest on | Where it lives in my workflow |
+|---|---|---|---|---|
+| Figma Make | Inside Figma | Designer-led prototyping with attached DS context | Long-lived codebases, complex backend | Initial prototypes; design-validation surfaces |
+| Cursor | Inside the IDE | Engineer-led implementation, multi-file refactors | First-time visual generation | Production code; once a feature is past prototype |
+| v0 | Web app, prompt-led | Single-screen polished UI from a brief | Multi-screen flows, your DS | Inspiration; one-off marketing surfaces |
+| Lovable | Web app, full-stack from prompt | Full mini-app generation, fast iteration | Integration with an existing codebase | Standalone tools; internal apps with no codebase to fit into |
+
+The way they fit together for me:
+
+- **Make** is for "design with code as the artefact" — when the artefact needs to live inside Figma's collaborative model.
+- **Cursor** is for "code with AI as a pair" — when the artefact is the production codebase.
+- **v0** is for one-off generation when I want a fresh visual idea, untethered from a DS.
+- **Lovable** is for greenfield mini-apps — internal tools, hackathon weekends, throwaway prototypes that might become real.
+
+The mistake I see teams make: treating these as competitors. They're complementary, with non-overlapping sweet spots. The discipline is choosing the right one per task, not standardising on one.
+
+## What Make can't replace
+
+A short list, because the framing matters more than the items:
+
+- **Architecture.** What's the data model, what's a server boundary, what gets cached where, what's the auth strategy.
+- **Hardening.** Rate limits, error budgets, observability, retries, idempotency.
+- **Cross-feature consistency.** Make works one prompt at a time. The product-wide coherence story is owned by humans (or by a DS strict enough to enforce it).
+- **Codebase integration.** Exported code is a starting point, not a drop-in.
+- **Performance + scale.** A Supabase-backed prototype works for 100 users. Production scaling is unchanged.
+- **Judgement on what's worth building.** AI generates surfaces fast; the question of which surfaces are worth generating is harder, not easier, when generation is cheap.
+
+The pattern is the same as every previous wave of AI tooling: 60–70% of the boring work, none of the judgement work. The judgement work just becomes more concentrated, more valuable, and more visible when the boring work disappears.
+
+## What this does to team shape
+
+Two structural shifts I've watched happen at three different companies in the last year:
+
+### The handoff stage compresses
+
+Designer ships a Make prototype. Design engineer integrates and polishes. Product engineer wires backend. Three roles, one artefact, one week. The previous shape — designer → static mock → engineering ticket → engineer rebuilds in code → review → revise — was three weeks for the same surface.
+
+### The design engineer ratio matters more
+
+Teams that previously could ship at quality with one design engineer per 12 product engineers now feel the squeeze; the throughput at the design-engineering boundary has gone up, and that boundary is where the design engineer lives. The ratio I'd target by end of 2026:
+
+- **1 design engineer per 6–8 product engineers** for product surfaces.
+- **1 design engineer per 4 product engineers** for products where craft is the primary moat (developer tools, design tools, anything pricing on aesthetic).
+
+Companies that don't make this shift will look slower than companies that do. Not slightly. Visibly.
+
+## A case study: building one onboarding flow end-to-end with Make
+
+The most useful thing I can do is walk through one real flow. Names changed, shape preserved. Three-step onboarding for a B2B SaaS product: email + password, profile (name, role, company), plan selection (free vs pro).
+
+### Day 1, 11:00 AM — Sketch in Figma
+
+Designer assembles the three screens using DS components: `AuthCard`, `Input`, `Button`, `PlanCard`. Twenty minutes.
+
+### Day 1, 11:20 AM — Attach + prompt
+
+Designer attaches the three frames as Make context with the kit selected.
+
+```text
+Build a three-step onboarding flow.
+
+Step 1: Email + password sign-up. Validate email format and require
+8+ char password. On submit, create user in Supabase auth.
+
+Step 2: Profile collection. Required: full name, role (dropdown:
+Engineer, Designer, PM, Other), company name. Persist to a `profiles`
+table keyed by user id.
+
+Step 3: Plan selection. Two cards (Free, Pro). On select, persist the
+choice to a `subscriptions` table. Free is the default.
+
+After step 3, route to /dashboard with a welcome toast.
+
+Use AuthCard for the layout shell on every step. Use PlanCard for the
+plan options. Show a 3-step progress indicator at the top of every
+screen.
+```
+
+Model: Claude (multi-step coherence matters here). Time to first runnable artefact: ~70 seconds.
+
+### Day 1, 11:25 AM — First inspection
+
+The output is at a URL. Real form submissions persist to real Supabase tables. Three things wrong on first review:
+
+- Step 2's role dropdown shows the labels in alphabetical order; we want "Engineer" first because it's the most common.
+- Step 3's PlanCard borders are wrong — using a primitive Card variant instead of the dedicated PlanCard from the kit.
+- Progress indicator is at the bottom of the screen on mobile because of a flex direction issue.
+
+Three follow-up prompts, three minutes each.
+
+### Day 1, 11:45 AM — Stakeholder check
+
+PM clicks through the live URL on her phone. Two pieces of feedback:
+
+- Plan card copy needs work.
+- The toast feels too quick to read.
+
+Both fixed in Make in five minutes.
+
+### Day 1, 2:00 PM — Export + integrate
+
+Design engineer exports to repo. Notes the gaps:
+
+- Real auth needs server-side session management, not client-only.
+- Profile persistence needs server-side validation (you cannot trust the client for "Engineer/Designer/PM/Other" enums).
+- Plan selection should be a webhook to billing, not a direct DB write.
+- Telemetry events for funnel analysis on every step.
+- Accessibility audit: focus traps in the multi-step shell, ARIA live region for the toast, screen-reader announcements for step transitions.
+
+These are the right gaps. The design engineer fills them in the production codebase over the rest of the day.
+
+### Day 2 — Polish
+
+Micro-interactions on plan card hover. Loading state for the submit button. Error toast for network failure. Reduced-motion variant for the step transition. Final accessibility audit.
+
+### End of Day 2 — Shipped
+
+Total elapsed time: 1.5 days. Previous version of this flow took 8 working days.
+
+The Make output didn't ship. The Make output _started_ what shipped, and reduced the cost of getting to the shape that ships by an order of magnitude. That's the right way to read the productivity number.
+
+## Plugin ecosystem evolution
+
+Make didn't arrive in a vacuum. The plugin landscape that fed into it is also worth a snapshot:
+
+- **Tokens Studio.** Still the canonical bridge between Figma Variables and code-shaped tokens. Make Kits assume something like this is in place.
+- **Variables2Code.** Lightweight alternative for teams who want a one-click export rather than a build pipeline.
+- **Style-Dictionary-lite plugins inside Figma.** Several have appeared that codify naming, dark-mode, and rem math directly inside the Figma file. Useful as an enforcement layer for teams that don't have a strict CI step.
+- **Anima, Locofy.** Older "Figma to code" tools. Still around; less central now that Make has the same capability natively integrated.
+- **Component Inspect / Visual Diff plugins.** Increasingly important as AI generation makes it easy to drift from the system. The discipline of visual diffing the output against canonical examples is becoming a standard QA step.
+
+The trend: plugins are becoming infrastructure for the AI-design loop, not just productivity tools for designers. The ones that survive 2026 will be the ones that integrate cleanly with Make and Cursor, not the ones that try to compete with them.
+
+## Accessibility & craft-review checklist for AI-generated UI
+
+Every Make output goes through this checklist before I export. Cheap; catches the same five things every time.
+
+- [ ] **Keyboard nav.** Every interactive element reachable, focus order matches reading order.
+- [ ] **Focus indicators.** Visible on every focusable element. Custom is fine; missing isn't.
+- [ ] **Contrast.** Use a contrast checker on every text/background pair. AI defaults are usually OK; "usually" isn't enough.
+- [ ] **Heading order.** No skipped levels. The AI will sometimes drop from `h1` straight to `h3`.
+- [ ] **Form labels.** Every input has a programmatic label, not just a placeholder.
+- [ ] **ARIA live regions** for any async updates (toasts, validation errors).
+- [ ] **Reduced motion.** Any animation > 200ms respects `prefers-reduced-motion`.
+- [ ] **Screen-reader pass.** One full flow with VoiceOver. Catches at least one issue per generated surface.
+- [ ] **Semantic HTML.** AI loves `<div>`. Force `<button>`, `<nav>`, `<main>`, `<section>` where appropriate.
+- [ ] **Error states.** Every form has at least one error path tested.
+- [ ] **Empty states.** Every list has its empty state designed, not implied.
+- [ ] **Loading states.** Every async surface has a skeleton or spinner.
+- [ ] **Mobile.** Every surface tested at 360px wide.
+
+Roughly 20 minutes per surface. Non-negotiable.
+
+## When to export to repo vs stay in Make
+
+A short decision rule:
+
+- **Stay in Make if:** the artefact is a prototype for design validation, an internal tool, a one-off, a live demo for a stakeholder review.
+- **Export if:** the artefact is going to ship to customers, integrate with your existing codebase, persist beyond a sprint, or get touched by more than one engineer.
+
+The threshold isn't quality. It's longevity. Make is a great prototyping medium and a poor long-term home. Treat it accordingly.
+
+## Governance and DS contribution from Make-generated code
+
+A subtle point most teams miss: when an exported Make output uses the DS in a way that's slightly off, that's a signal about the DS, not the AI.
+
+- If the AI keeps reaching for a primitive when a composed pattern exists, the pattern probably needs a better `use_when`.
+- If the AI keeps reinventing a layout, the layout probably needs to become a kit entry.
+- If the AI keeps using the wrong variant of a component, the variant naming probably isn't carrying enough intent.
+
+I now treat AI output as a continuous DS audit. The patterns that drift are the patterns the system isn't teaching well. Fix the system; the AI's output improves automatically; humans following the same DS docs benefit too.
+
+> **Rule of thumb:** every time you find yourself fixing the same thing in AI output across multiple prompts, that's a DS bug, not an AI bug. The AI is consistent. Fix once at the kit/component layer and the fix propagates.
+
+## Hiring impact
+
+Three hiring shifts I'd bet on for the back half of 2026:
+
+1. **"Familiarity with AI design tooling" becomes a default JD line for design engineers**, the way "familiarity with Figma" became one in 2018.
+2. **The interview portfolio shifts.** The strongest design engineers will show before/after of AI output, not just hand-built work. The skill being demonstrated is taste plus prompt fluency plus DS literacy, not raw build speed.
+3. **The compensation gap narrows.** Design engineers move closer to senior backend rates because their leverage is now visible at the team output layer, not just the polish layer.
+
+If you're a hiring manager, the candidate signal worth weighting heavily: can they articulate _why_ a given AI output is wrong against a DS, and what they'd change in the system to prevent it. That's the design engineer instinct in 2026.
+
+## The honest summary
+
+Figma Make is the first AI design tool I've used that I'd actually ship with. Not because it's smarter than the others — it's not — but because it's _connected to your design system_ and that's the missing piece every other tool tripped on.
+
+Three practical implications worth taking away:
+
+1. **If you don't have a strong DS, the priority is to build one.** AI tooling will compound either your DS's strengths or its absence.
+2. **If you don't have design engineers on the team, hiring one will produce a velocity step-change** you can't get any other way in 2026.
+3. **Treat inference routing as a discipline.** Knowing which model wins which task inside Make is the new "knowing which CSS framework wins which use case." Cheap to learn; pays back continuously.
+
+Everything else is implementation detail.
+
+---
+
+Building at the AI × Design × Engineering seam right now? I'd love to compare notes — [drop me a line](/#contact).

@@ -1,0 +1,88 @@
+---
+title: 'Agent Skills: the missing packaging unit for LLM features'
+description: "Why the next layer above tools and prompts isn't another framework — it's a portable, declarative agent skill that any agent can consume."
+date: '2026-04-12'
+updated: '2026-04-12'
+category: 'AI Patterns'
+tags: ['Agent Skills', 'LLM', 'MCP', 'Anthropic', 'Claude', 'Subagents', 'Generative UI']
+author: 'Malaka Venugopal Reddy'
+---
+
+For the last three years, every meaningful LLM advance has had a clear packaging unit. **Tools** turned text generators into actors. **RAG** turned them into librarians. **MCP** turned tools into a portable wire protocol. But every team I work with hits the same wall around month four:
+
+> "We have eleven internal tools, six prompt templates, and four agents. None of them compose. We can't even share them with the team next door without re-explaining everything."
+
+The missing layer is **skills**. Not as in "things the model is good at" — as in a concrete, declarative bundle that says: _here is a capability, here is when to use it, here are its tools, here is its UI, here are its evals._ Anthropic's Skill packages and Cursor's Skills system both point at the same shape. It's worth understanding why this shape matters now.
+
+## The four-layer stack
+
+Here's the mental model I've been using on production agentic systems:
+
+1. **Models** — Claude, GPT, Gemini, the model on Bedrock. Capability provider.
+2. **Tools** — JSON-schema-described functions. Capability primitive.
+3. **MCP servers** — Tools, but portable across models and clients. Capability transport.
+4. **Skills** — Tools + prompts + UI + evals + when-to-trigger heuristics, packaged as a unit. _Capability product._
+
+Notice that 1–3 are about _what the model can do._ Skills are the first layer about _what the model should do, when, and how to surface it_. That's the layer humans actually consume.
+
+## Anatomy of a useful skill
+
+Every well-designed skill I've shipped has the same five parts:
+
+```text
+my-skill/
+├── SKILL.md          # natural-language description: when to use, examples
+├── tools/            # MCP-shaped tool descriptors (json) + handlers
+├── prompts/          # system additions, few-shot examples
+├── ui/               # generative UI components the skill renders into
+├── evals/            # golden traces + assertions
+└── manifest.json     # name, version, model compat, scopes
+```
+
+The killer feature is `SKILL.md`. The model itself decides whether to invoke the skill, based on a short, well-written description. This is not a prompt template — it's a **discovery document** that the orchestrator (or another agent) reads to decide if your skill is relevant right now.
+
+> **Field note:** the single highest-leverage thing you can do for skill adoption is write a `SKILL.md` that begins with concrete trigger phrases ("Use this when the user asks…") and ends with one tightly-scoped example. Models index on that. Other agents index on that.
+
+## Why now? Three forces converging
+
+### 1. Models got good enough at routing
+
+With Claude 3.5+ and GPT-4-class models, you can put 30+ skill descriptions in front of an agent and reliably get the right one selected. Two years ago you had to hard-code a router. Today, the model _is_ the router — if your descriptions are honest.
+
+### 2. MCP standardised the wire
+
+Before MCP, every "skill-like" thing was tightly coupled to LangChain or LlamaIndex or your own in-house orchestrator. With MCP, the tool layer is portable. Skills became the natural next package format because their _tools_ stopped being framework-specific.
+
+### 3. Subagents made delegation cheap
+
+A skill is far more powerful when it can spawn its own subagent rather than execute inline. Once you have skill-spawned subagents, you have what is functionally a _plugin system for cognition_, with isolated context windows per skill execution. (More on this in the next article.)
+
+## Designing skills people actually reuse
+
+A few patterns I keep coming back to:
+
+- **One skill = one verb.** "Generate quarterly report" is a skill. "Office productivity" is a category. Don't ship categories.
+- **Skills own their UI.** If your skill renders a citations list, the citations component ships with the skill. Don't make the host app re-implement it.
+- **Skills own their evals.** Ten golden traces with assertions. If they pass on a new model, the skill is portable. If they don't, the skill needs work — not the model.
+- **Skills version like APIs.** Semver. Deprecate loudly. The host agent shouldn't guess which skill version is loaded.
+- **Skills should be describable in 280 characters.** If you can't, you're shipping two skills.
+
+## What this changes for product teams
+
+The biggest shift isn't technical — it's organisational. When skills become the unit of work, you can have an "Onboarding Skill" team that ships independently of a "Search Skill" team. Both can be consumed by every agent the company runs. The same skill can power Slack, a web app, and a CLI agent without rewriting.
+
+For frontend platform teams in particular: skills are how AI features finally stop being bespoke per-product implementations and start looking like the design-system primitives we built for components five years ago.
+
+## Where to start
+
+1. Pick one feature your team has implemented twice (probably search, summarisation, or report-gen).
+2. Extract its tools as MCP descriptors.
+3. Write its `SKILL.md` with explicit triggers and one example.
+4. Move its UI into a self-contained component.
+5. Capture 5 traces from production and convert them into evals.
+
+Ship that as v0.1. The third team that consumes it will tell you everything you missed — and that's the whole point. Skills are **built for second consumers, not first authors.**
+
+---
+
+Building skills, subagents or MCP servers in production? I'd love to compare notes — [drop me a line](/#contact).

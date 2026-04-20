@@ -1,0 +1,94 @@
+---
+title: 'Designing MCP servers your agents will actually use'
+description: 'Tool naming, error shapes, and the descriptor patterns that turn an MCP server from "available" into "preferred" by every model.'
+date: '2026-03-10'
+updated: '2026-03-10'
+category: 'MCP'
+tags: ['MCP', 'Model Context Protocol', 'Agent Tools', 'API Design', 'LLM']
+author: 'Malaka Venugopal Reddy'
+---
+
+Most teams I work with treat MCP server construction as an integration task: wrap the REST API, expose the methods, ship it. The result is technically correct and almost never used. The model picks the cleanest tool, not the most complete one. Here are the six things that have made the actual difference.
+
+## 1. Name tools like a senior API designer would
+
+The model's first read is the tool name. `execute_database_query` wins zero invocations against `customers_search`. Be:
+
+- **Verb-noun, snake_case.** `orders_create`, `tickets_resolve`.
+- **Domain-prefixed.** If three of your tools start with `jira_`, the model can scope its reasoning quickly.
+- **Concrete.** `send_message` loses to `slack_dm_user`.
+- **Plural for collections, singular for items.** `users_list` vs `user_get`. Old REST wisdom; still the right wisdom.
+
+## 2. Descriptions are the actual UX
+
+Models choose tools based on the description more than any other signal. Treat it like you'd treat the first paragraph of an API doc:
+
+```json
+{
+  "name": "tickets_resolve",
+  "description": "Mark a Jira ticket as resolved with a resolution comment. Use this when the user confirms a fix has been verified. Do NOT use for closing tickets without resolution — use tickets_close.",
+  "input_schema": { "...": "..." }
+}
+```
+
+Notice the three moves: **what it does**, **when to use it**, and **when not to use it**. The negative case is the part most teams skip; it's the part that prevents 80% of mis-invocation.
+
+## 3. Input schemas are rules, not suggestions
+
+Be aggressive with constraints. Models follow JSON Schema better than you think:
+
+- Use `enum` for any field with bounded values. Don't accept "high"/"High"/"HIGH".
+- Use `format: "date"` instead of "string with a date in it".
+- Use `required` liberally. Optional fields cause models to sometimes-include them with placeholder values.
+- For each parameter, write a one-line `description`. Especially what units and formats you expect.
+
+> **Counterintuitive find:** tighter schemas don't reduce model creativity, they reduce model hallucination. Across our internal evals, adding `enum` to three fields cut bad-input errors by ~60%.
+
+## 4. Errors are conversations, not stack traces
+
+Your tool returned `{"error": "ValidationError", "code": 422}`? The model has no idea what to do with that. Now compare:
+
+```json
+{
+  "error": "missing_field",
+  "field": "due_date",
+  "message": "due_date is required when priority is 'high'. Provide an ISO-8601 date or call tickets_create_basic instead.",
+  "retryable": true
+}
+```
+
+Error messages are _recovery instructions for the model._ Treat them that way. Tell it what to do next, not just what went wrong. Mark `retryable: true/false` explicitly so the agent doesn't loop on permanent failures.
+
+## 5. Surface the right amount of data — never more
+
+The single biggest waste of context I see in MCP servers is "return the whole record." A 400-field user object burns 1k+ tokens and makes the model less likely to find the field it needed.
+
+- Default to a **summary view**. Provide a separate `_full` variant or a `fields[]` param for cases that need everything.
+- For lists: paginate hard. 5 items per page beats 50 items every time.
+- Truncate strings &gt; 500 chars by default with `"…"` and a hint that the full content is available via another call.
+
+## 6. Ship a `_describe` meta-tool
+
+A small but meaningful trick: include a `{server}_describe` tool that returns a short markdown description of what the server is for and which tools to combine for common workflows. Models call it on first use, cache it in context, and pick better tools afterwards. Cheap to build, expensive to skip.
+
+```json
+{
+  "name": "jira_describe",
+  "description": "Return a short overview of this Jira MCP server, common workflows, and which tools combine well. Call this once when first interacting with Jira.",
+  "input_schema": { "type": "object", "properties": {} }
+}
+```
+
+## Bonus: server-side eval harness
+
+Every MCP server I ship now includes a `evals/` folder with a JSONL of `{prompt, expected_tool, expected_args}` rows. CI runs these against Claude/GPT and fails the build on regressions. Took an afternoon to set up, prevented a half-dozen "weird, the model used to call this tool" moments.
+
+## The core idea
+
+An MCP server is a **contract with a non-deterministic consumer**. The same contract you'd give a junior engineer who just joined and needs to ship something today, using only your API docs. If a junior engineer would pick the wrong endpoint or misinterpret the response — your model will too, just faster and at higher volume.
+
+Build for the model the same way you'd build for that junior. Names, examples, constraints, recovery paths. Almost everything else takes care of itself.
+
+---
+
+Building or auditing MCP servers? I write more on this and adjacent agentic patterns — [browse the rest](/articles).

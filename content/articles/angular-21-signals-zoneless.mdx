@@ -1,0 +1,512 @@
+---
+title: "Angular 21 in production: the v2 → v21 cadence finally pays off"
+description: "Signals as the default reactive primitive, zoneless apps shipping for real, Signal Forms, Vitest by default, the Angular MCP server, and what a 19-version upgrade actually feels like to live through."
+date: '2026-03-30'
+updated: '2026-03-30'
+category: 'Frontend Architecture'
+tags: ['Angular', 'Signals', 'Zoneless', 'Frontend', 'Migration']
+author: 'Malaka Venugopal Reddy'
+---
+
+I started writing Angular when it was AngularJS 1.2. I shipped a v2 RC build to production in 2016, lived through the v4 jump that wasn't really a jump, the Ivy long march in v9, the standalone-components reckoning in v14, and every six-monthly upgrade since. Angular 21 is the first version since Ivy where I have genuinely had to reconsider _how I write components_, not just which APIs I import.
+
+This is what's actually changed, what's worth migrating to, what I'd skip, and the upgrade playbook I've now run on two enterprise codebases.
+
+## A short retrospective: what 19 majors actually taught us
+
+It is hard to talk about v21 without acknowledging the trail. The cadence has not been kind to teams that fell off it, but it has been quietly excellent for teams that stayed on it.
+
+| Era | Versions | What actually mattered |
+| --- | --- | --- |
+| **The rebuild** | v2 → v5 | TypeScript, components-as-classes, the dawn of `@NgModule`. Everything was wired by hand. Bundles were enormous. |
+| **The maturity stretch** | v6 → v8 | CLI workspaces, Angular Material that didn't fight you, RxJS as a household name, lazy-loaded routes that worked. |
+| **Ivy and after** | v9 → v13 | The compiler rewrite. Tree-shakeable code, faster builds, smaller bundles, and the first time Angular bundles were genuinely competitive with React. |
+| **Standalone everywhere** | v14 → v17 | `standalone: true` started as opt-in and became the default. `NgModule` is still there for legacy, but new code rarely needs it. |
+| **Signals & DX** | v17 → v20 | Signals introduced, control flow (`@if`, `@for`, `@switch`) replaced structural directives, deferrable views, esbuild as the default bundler. |
+| **The default flip** | v21 | Signals as the canonical reactive primitive, zoneless production-ready, Signal Forms, Vitest as the default test runner, first-party MCP server. |
+
+The lesson I keep relearning: Angular only feels like a slow-moving framework if you skip versions. Take every six months and the diffs are small, well-documented, and mostly automated. Skip three years and you are looking at a multi-quarter project.
+
+> **Field note.** Every Angular shop I have helped that is "stuck on v12" had the same root cause. Not technical debt. A leadership decision two years ago that "we'll upgrade when we have bandwidth." Bandwidth never appears on a calendar. The upgrade has to be calendar-blocked or it never happens.
+
+## The headline shift: signals are the default
+
+Signals stopped being "the new primitive you should evaluate" sometime around v17. By v21 they are the way you write reactive code in Angular, full stop. RxJS is not gone — it is still the right tool for streams, async coordination, retries, debouncing, and anything that crosses an HTTP boundary — but for component state, signals win on every axis I care about: ergonomics, type narrowing, change detection cost, and debuggability.
+
+A typical v15 component:
+
+```ts
+@Component({
+  selector: 'app-cart-counter',
+  template: `<button (click)="add()">Items: {{ count }} ({{ total }})</button>`,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+class CartCounter {
+  count = 0;
+  total = '$0.00';
+  constructor(private cdr: ChangeDetectorRef) {}
+  add() {
+    this.count++;
+    this.total = `$${(this.count * 9.99).toFixed(2)}`;
+    this.cdr.markForCheck();
+  }
+}
+```
+
+The same component in v21:
+
+```ts
+@Component({
+  selector: 'app-cart-counter',
+  template: `<button (click)="add()">Items: {{ count() }} ({{ total() }})</button>`,
+})
+class CartCounter {
+  count = signal(0);
+  total = computed(() => `$${(this.count() * 9.99).toFixed(2)}`);
+  add() { this.count.update(n => n + 1); }
+}
+```
+
+It is not the syntax that matters. It is that:
+
+- `total` is a derived value the framework owns. You cannot forget to update it.
+- The template re-renders only when `count` changes, surgically.
+- You never wrote the words `markForCheck`, `ChangeDetectorRef`, or `OnPush`.
+- You did not need a `BehaviorSubject`, an `async` pipe, or a `ReplaySubject` for state that two components share.
+
+Multiply that across 600 components in an enterprise app and the cumulative win is substantial. The bug class "I forgot to call `markForCheck`" goes to zero. The bug class "this `BehaviorSubject` is leaking subscribers" goes to zero.
+
+### `computed`, `effect`, and `linkedSignal`
+
+The three composition primitives I use every day:
+
+```ts
+const firstName = signal('Malaka');
+const lastName = signal('Reddy');
+
+const fullName = computed(() => `${firstName()} ${lastName()}`);
+
+effect(() => {
+  console.log('name changed to', fullName());
+});
+
+const editableFullName = linkedSignal({
+  source: fullName,
+  computation: (newName, previous) => previous?.value ?? newName,
+});
+```
+
+- `computed` — derived state. Lazy, memoised, automatically tracked.
+- `effect` — side effects. Runs once on creation and again whenever any tracked signal it reads changes. The replacement for ~80% of `subscribe()` calls in component code.
+- `linkedSignal` — a writable signal that resets when its source changes. The cleanest way to model "form field tied to a fetched record" without a `ngOnChanges` hook.
+
+> **Rule of thumb.** If you reach for `effect` and the body contains a network call, stop. `effect` is for syncing in-memory state. Network calls belong in `resource()` or an event handler.
+
+### The change detection mental model, finally simple
+
+Pre-signals, change detection in Angular was a graph of components, each with a strategy, each with a `ChangeDetectorRef`, all driven by Zone.js patching every async API in the browser. You could draw it on a whiteboard but you could not keep it in your head.
+
+With signals + zoneless, the mental model collapses to one sentence:
+
+> **A component re-renders when a signal it reads changes.**
+
+That's it. No zones. No `markForCheck`. No `OnPush`. No `detectChanges`. No "did I trigger CD by calling `setTimeout`?" The reactivity graph is explicit, traceable in DevTools, and predictable.
+
+## Zoneless: the flag I finally turned on in production
+
+Through v18 and v19 I evaluated zoneless apps in side projects and stayed cautious in production. With v21 I have shipped two zoneless modules in a real app and the experience has been quietly excellent.
+
+### What zoneless gives you
+
+- **Smaller bundles.** Zone.js and its patches are ~30 kB gzip. Gone.
+- **Predictable change detection.** It runs when a signal updates or you explicitly request it. No more "why did this re-render?" detective work.
+- **Cleaner SSR + hydration.** The hydration story is finally first-class. No "stable" event the framework waits for; the app just renders.
+- **Faster startup.** ~15–25% faster TTI on the dashboards I have measured, mostly from removing zone patching at boot.
+- **Better DevTools traces.** No `zone.run` frames clogging the flame chart.
+
+### What you give up
+
+- **Anything that relied on Zone-patched async.** Some legacy libs, certain Material flows, and any code that mutates state inside a `setTimeout` and expected the view to refresh. Audit before you flip the flag.
+- **The "everything just works" defaultness.** You will explicitly think about change detection in a few places — typically when integrating non-Angular code or third-party promises. That is the trade-off.
+- **Some test fixtures.** `fakeAsync` still works but a small percentage of older tests need updates.
+
+### The migration, step by step
+
+Do this module-by-module. Do not try to convert the whole monolith in one PR.
+
+```ts
+// app.config.ts
+import { provideExperimentalZonelessChangeDetection } from '@angular/core';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideExperimentalZonelessChangeDetection(),
+    provideRouter(routes),
+    // ...
+  ],
+};
+```
+
+Then:
+
+1. **Inventory async code.** Grep for `setTimeout`, `setInterval`, `Promise.then`, third-party callbacks. Anything that mutates component state from outside Angular needs a signal write or an explicit `ChangeDetectorRef.detectChanges` (rare).
+2. **Audit Material / CDK / third-party libs.** Most major libs are zoneless-clean as of late 2025. Old wrappers around jQuery plugins are not.
+3. **Run your full e2e suite with `--zoneless` enabled in a CI lane** for two weeks before flipping the flag in prod. Most regressions surface in the first three days.
+4. **Have a rollback path.** Keep the providers behind a feature flag so you can switch back per-environment without a deploy.
+
+### Rollback playbook
+
+I have rolled this back exactly once, on a module that depended on a charting library that scheduled DOM mutations through Zone-patched microtasks. The rollback was a single config flag. The lesson: keep the flag for at least a quarter after rollout. The cost is a few bytes; the option value is enormous.
+
+## Signal Forms: the underrated v21 win
+
+Forms have been Angular's most-debated subsystem for years. Template-driven was simple but untyped and full of hidden NgModel magic. Reactive was typed (eventually) but verbose, and the validator types were always slightly wrong. Signal Forms collapse the trade-off.
+
+### The minimal example
+
+```ts
+form = signalForm({
+  email: signal(''),
+  password: signal(''),
+}, {
+  validators: {
+    email: [required(), pattern(emailRe)],
+    password: [required(), minLength(12)],
+  },
+});
+
+submit = computed(() => this.form.valid() ? 'enabled' : 'disabled');
+```
+
+Three things to like:
+
+- The form value is a signal you can `computed()` on directly. No `valueChanges.subscribe()`.
+- Validation runs as a derivation, not a subscription chain. Re-runs are surgical.
+- The whole thing types end-to-end — including async validators. Hover over `form.value()` and you get the actual shape, not `any`.
+
+### A real-world Signal Form vs Reactive Form comparison
+
+A login form with cross-field validation, async username availability check, and pending state.
+
+**Reactive Forms (v15-style):**
+
+```ts
+form = this.fb.group({
+  username: ['', [Validators.required], [this.usernameAvailable.bind(this)]],
+  password: ['', [Validators.required, Validators.minLength(12)]],
+  confirm: ['', [Validators.required]],
+}, { validators: this.passwordsMatch });
+
+submitDisabled$ = this.form.statusChanges.pipe(
+  startWith(this.form.status),
+  map(s => s !== 'VALID' || this.form.pending),
+);
+
+usernameAvailable(ctrl: AbstractControl) {
+  return this.api.checkUsername(ctrl.value).pipe(
+    map(ok => ok ? null : { taken: true }),
+  );
+}
+
+passwordsMatch(group: AbstractControl) {
+  const p = group.get('password')!.value;
+  const c = group.get('confirm')!.value;
+  return p === c ? null : { mismatch: true };
+}
+```
+
+**Signal Forms (v21):**
+
+```ts
+form = signalForm({
+  username: signal(''),
+  password: signal(''),
+  confirm: signal(''),
+}, {
+  validators: {
+    username: [required(), asyncValidator(v => this.api.checkUsername(v))],
+    password: [required(), minLength(12)],
+    confirm: [required()],
+  },
+  cross: [
+    ({ password, confirm }) => password() === confirm() ? null : { mismatch: true },
+  ],
+});
+
+submitDisabled = computed(() =>
+  !this.form.valid() || this.form.pending(),
+);
+```
+
+Same behaviour. Half the code. Fully typed. No `AbstractControl` casts, no `as FormGroup`, no `formControlName` strings that drift from the model.
+
+### When to migrate
+
+For green-field forms in v21+, Signal Forms are the default. For existing reactive forms, migrate when you are already touching the file. Do not migrate for its own sake. The two APIs coexist cleanly and the schematic that converts simple reactive forms is reliable; complex ones are not.
+
+## Vitest by default: goodbye Karma + Jasmine
+
+v21 makes Vitest the default test runner for new projects. Existing projects can switch with a schematic. The diff that matters:
+
+| Aspect | Karma + Jasmine | Vitest |
+| --- | --- | --- |
+| Cold start | 8–15s | &lt; 1s |
+| Watch mode feedback | 2–4s | 50–200ms |
+| Browser harness | Real browser via Karma | jsdom by default; real browser optional via Playwright |
+| ESM support | Painful | Native |
+| Parallelism | Per-spec, per-browser | Threaded by default |
+| TypeScript path mapping | Works after configuration | Works |
+
+For one of my codebases (1,200 specs), the full test run dropped from 11 minutes to 95 seconds. The watch loop dropped from "go get coffee" to "instant."
+
+The migration schematic handles ~80% of specs cleanly. The remaining 20% are typically:
+
+- Specs that depend on `TestBed.inject` quirks specific to the Karma environment.
+- Specs using `done` callbacks instead of returning Promises.
+- Specs that import Jasmine globals directly (`spyOn`, `jasmine.clock`) rather than using the framework abstraction.
+
+Budget a sprint for the migration on a large codebase. Do not skip the e2e regression run after.
+
+## The Angular MCP server: a quietly significant ship
+
+v21 introduced a first-party Angular MCP server. In practice this means Cursor / Claude / any MCP-aware IDE can introspect your project's structure — components, routes, services, signals, providers — and reason about them with framework awareness rather than guessing from text.
+
+I have been using it for two months. The things it actually changes:
+
+### What works well
+
+- **"Add a route for X" prompts** produce Angular-correct routing config the first time, including lazy-loading boilerplate and proper `provideRouter` integration.
+- **Refactor prompts** ("convert this component to signals") respect Angular's change detection model instead of producing technically-valid-but-idiomatically-wrong code.
+- **"Where is this signal read?"** queries return real data instead of best-effort grep. The MCP server walks the actual reactivity graph.
+- **Schematic-aware suggestions.** "Generate a guard for the admin route" runs through the same code paths as `ng generate`.
+
+### What it doesn't do (yet)
+
+- It does not replace `ng update`. The MCP server is for development, not migrations.
+- It does not understand third-party libraries deeply. Material yes, your internal design system no.
+- It is read-mostly. Mutations still go through file edits in the editor.
+
+It is not transformative. It is a 20–30% quality lift on AI-assisted Angular work, which is exactly enough to make AI worth using on Angular code in a way it was not a year ago.
+
+```jsonc
+// .cursor/mcp.json — the only config you need
+{
+  "mcpServers": {
+    "angular": {
+      "command": "ng",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+## DI changes through the versions
+
+A short tour, because dependency injection is the part that has changed most quietly:
+
+- **`inject()` over constructor injection** since v14. Reads better, plays well with composition functions, and is required for some signal patterns.
+- **`InjectionToken` typing** improved in v17 — generics finally flow correctly through `provide`/`inject`.
+- **`provideX()` factory functions** replaced module-based providers in v18+. `provideHttpClient(withInterceptors([authInterceptor]))` is now the canonical pattern.
+- **Hierarchical injectors** still exist, still matter, still trip up junior engineers. The mental model has not changed since v2; the syntax just got cleaner.
+
+Modern v21 component:
+
+```ts
+@Component({ /* ... */ })
+class UserPage {
+  private api = inject(UserApi);
+  private route = inject(ActivatedRoute);
+  private id = toSignal(this.route.params.pipe(map(p => p['id'])));
+  user = resource({ request: this.id, loader: ({ request }) => this.api.get(request) });
+}
+```
+
+No constructor. No `private readonly`. No subscription. The whole component fits in eight lines and renders correctly on first load, on param change, and on error. The `resource()` primitive (signals-native data fetching) is the part most teams have not adopted yet but should.
+
+## Standalone components everywhere
+
+`NgModule` is no longer required for new code. Existing modules still work and will work for a long time, but the schematic to convert them is mature and the diff is usually a net delete.
+
+The before:
+
+```ts
+@NgModule({
+  declarations: [UserListComponent, UserCardComponent],
+  imports: [CommonModule, RouterModule, MaterialModule],
+  exports: [UserListComponent],
+})
+class UsersModule {}
+```
+
+The after:
+
+```ts
+@Component({
+  selector: 'app-user-list',
+  imports: [NgIf, NgFor, RouterLink, MatCardModule],
+  template: '...',
+})
+class UserListComponent {}
+```
+
+Each component declares its own dependencies. Tree-shaking is per-component, not per-module. New developers do not have to learn what `declarations` vs `imports` vs `exports` means before writing their first component.
+
+> **Field note.** The single biggest onboarding accelerator for junior engineers in 2026 is standalone-everywhere Angular. The conceptual surface area dropped by half.
+
+## Performance benchmarks that hold up
+
+A real app I have access to (mid-sized SaaS dashboard, ~280 routes, ~850 components):
+
+| Metric | v15 + zone | v18 + zone | v21 + zoneless |
+| --- | --- | --- | --- |
+| Initial bundle (gzip) | 412 kB | 318 kB | 264 kB |
+| Time to Interactive (3G Fast) | 4.1s | 2.9s | 2.3s |
+| INP p75 (typing in heavy form) | 380ms | 210ms | 95ms |
+| Change detection cost (heavy dashboard) | 16ms / cycle | 9ms / cycle | 3ms / cycle |
+| Production build time | 4m 20s | 1m 50s | 55s |
+| HMR feedback | 1.2s | 600ms | 180ms |
+
+The bundle reduction is mostly Zone.js removal plus better tree-shaking of standalone components. The CD cost reduction is the signal graph replacing dirty-checking. The build time reduction is esbuild and Vite-style HMR replacing Webpack.
+
+These numbers are not marketing. They are what the migration delivered on one specific app. Yours will vary; the direction will not.
+
+## What an enterprise upgrade cadence actually looks like
+
+Across two large Angular codebases I help maintain, the cadence that has worked:
+
+### The annual rhythm
+
+- **Twice a year**, predictable, minor + major together. Calendar-blocked at the start of the planning cycle.
+- **Schematics first, manual fixes second.** `ng update` does 80%. The remaining 20% is what the changelog warns about.
+- **One feature module migrates to signals per sprint.** Never the whole app at once.
+- **Zoneless gets its own quarter.** Do not bundle it with a feature release.
+- **Roll Material / CDK / third-party libs in lockstep.** Half-upgraded dependency graphs are where regressions hide.
+
+### Sprint-level breakdown of a typical major upgrade
+
+For a v18 → v21 jump on a 500-component app:
+
+| Sprint | Focus | Deliverable |
+| --- | --- | --- |
+| 1 | `ng update @angular/core@21 @angular/cli@21` on a branch. Resolve all schematic-applied changes. | Green build, all tests passing, no production deploy. |
+| 2 | Third-party library updates (Material, CDK, NgRx if present, internal design system). | Same as above; full e2e regression. |
+| 3 | Migrate two leaf modules to signals as a pilot. Measure CD cost before/after. | Signed-off pattern doc + linter rules. |
+| 4 | Roll signal migration through remaining feature modules in parallel. | One PR per module, mechanical schematic + manual review. |
+| 5 | Convert tests from Karma to Vitest, module-by-module. | New CI lane, old lane retired at end of sprint. |
+| 6 | Zoneless on the simplest module. Soak in staging for a week. | Behind a feature flag in production. |
+| 7 | Zoneless rollout to all modules where the audit cleared. | Feature flag flipped per-module. |
+| 8 | Cleanup, retrospective, documentation, and the next quarter's plan. | A boring sprint, intentionally. |
+
+The single biggest win from staying current is _people_. Engineers do not want to work on Angular 9. Angular 21 with signals + zoneless is genuinely a great DX, and that shows up in retention and recruiting.
+
+## Common migration pitfalls
+
+The non-obvious ones that cost me a day each, the first time:
+
+### Signals inside RxJS pipelines
+
+Reading a signal inside an RxJS operator does not subscribe to it. You'll get the value at the moment the operator runs and never an update. Use `toObservable(mySignal)` to bridge.
+
+```ts
+this.data$ = combineLatest([
+  toObservable(this.filter),
+  toObservable(this.page),
+]).pipe(
+  switchMap(([filter, page]) => this.api.search(filter, page)),
+);
+```
+
+### Effects writing to signals they read
+
+Forbidden by default in v21. The framework throws at runtime. The fix is `allowSignalWrites: true` in the effect options, but 95% of the time the right fix is to use `computed` instead.
+
+### `ngOnChanges` interactions with signal inputs
+
+If you migrate component inputs to `input()` signals but still implement `ngOnChanges`, the lifecycle hook still fires — but the change record is empty for signal-typed inputs. Move the logic into a `computed` or an `effect`.
+
+### Material's `MatFormField` and zoneless
+
+Older Material versions (&lt; v18) patch Zone for some focus management. Audit form-heavy modules first.
+
+### Hydration mismatches with `Date.now()`
+
+Same as React. Anything that produces different output on server vs client will scream at hydration time. Wrap in `afterNextRender`.
+
+## Comparison vs React in 2026
+
+A frank table for the framework choice conversation:
+
+| Dimension | Angular 21 | React 19 |
+| --- | --- | --- |
+| Reactive primitive | Signals (built-in) | `useState` / `useReducer` (built-in), Signals (proposed) |
+| Default rendering | CSR + SSR + hydration | RSC + SSR + Client Components |
+| Forms | Signal Forms (typed, derived) | Form libs (RHF, Conform); native forms via Server Actions |
+| State management | Signals + services for most apps; NgRx for the rest | Context + libs (Zustand, Jotai); RSC reduces need |
+| Bundler | esbuild via Angular CLI | Vite, Turbopack, Rspack — choose your own |
+| Testing | Vitest by default (v21) | Vitest by default in most starters |
+| AI tooling | First-party MCP server, schematics | Excellent ecosystem, no first-party MCP yet |
+| Onboarding curve | Steeper but more uniform | Shallower start, sharper at the platform layer |
+| Enterprise fit | Strong. Opinionated, batteries-included. | Strong. Less prescriptive, more choice. |
+
+Both ecosystems are in an excellent place in 2026. The choice should come down to team familiarity, hiring pool, and whether you value batteries-included (Angular) or compose-your-own (React).
+
+## Hiring narrative for Angular shops
+
+Angular has a perception lag. The narrative most candidates carry is from v8 or v9. The v21 release is the one to put in front of skeptical candidates. Talking points that have worked for me:
+
+- **"We use signals everywhere; you will not see `markForCheck` in the codebase."**
+- **"Zoneless. Tests in Vitest. Sub-second feedback loop."**
+- **"The MCP server makes AI-assisted refactoring on Angular as good as any other framework."**
+- **"Twice-a-year predictable upgrades. You will not be stuck on a legacy version."**
+
+The hiring story is uphill but closing. Lean into it.
+
+## Defending the upgrade in budget reviews
+
+The non-engineering version of the pitch:
+
+- **Bundle size down 30%.** Translates to faster loads, better Core Web Vitals, better SEO.
+- **Test runs down 80%.** Translates to faster CI, more deploys per week, lower cloud cost.
+- **CD cost down ~80%.** Translates to fewer "the app feels janky" tickets.
+- **Engineer onboarding from two weeks to three days.** Standalone components removed an entire conceptual layer.
+- **Recruiter signal.** "Modern Angular shop" is a real differentiator vs the "stuck on v9" perception.
+
+Numbers, not aesthetics. Budget owners do not care that the API is nicer. They care that CI is cheaper.
+
+## CI integration that holds up
+
+A few non-negotiables for a modern Angular pipeline:
+
+- **`ng build --configuration=production` with bundle-budget enforcement.** Fail the build on a regression &gt; 5 kB without a justification commit message.
+- **`ng test --watch=false --browsers=ChromeHeadless` (Vitest equivalent in v21).** With coverage gates.
+- **`ng e2e` against a deployed preview URL.** Playwright is now the default; Cypress works fine if you already have it.
+- **`ng lint` with `@angular-eslint`** including the v21 rules for signal usage. Catches `effect` writing to a signal it reads, `inject()` outside an injection context, etc.
+- **Lighthouse CI on a representative route.** Catches the regressions tests do not.
+
+## What's coming in v22
+
+A short, opinionated forecast based on the public roadmap:
+
+- **Signal-based router.** The route params, query params, and state become signals end to end. Eliminates the last big island of `Observable` in most apps.
+- **Stable `resource()` primitive.** Already great; will lose its experimental tag.
+- **Better SSR streaming.** Per-component streaming with Suspense-like boundaries.
+- **MCP server v2.** Project-aware refactors that span multiple files atomically.
+- **Standalone-only schematic.** New apps will not have `NgModule` at all.
+
+None of it is revolutionary. All of it tightens what is already good.
+
+## Where Angular sits in 2026
+
+A frank read on the ecosystem position:
+
+- **DX:** caught up with React + Vite for the first time in years. Possibly ahead, with signals and Signal Forms.
+- **AI tooling:** finally first-class via the MCP server. The "AI does not know Angular" complaint is mostly outdated.
+- **Hiring narrative:** still uphill. Angular has a perception lag that v21 is starting to close. Use the v21 release notes when defending the stack to skeptical stakeholders.
+- **Bundle size & startup:** competitive. Zoneless + signals + esbuild closes the long-standing gap with React/Vue.
+- **Long-term maintenance:** the strongest story in any major framework. Six-monthly releases, predictable LTS, schematic-driven migrations.
+
+If you are on Angular today and shipping, the right move is to stay the course, take the upgrades, and lean into signals. If you are choosing a framework in 2026, Angular 21 is back on the shortlist for the right team — particularly enterprise frontends with long maintenance horizons.
+
+---
+
+Running an Angular app at scale and thinking about the upgrade path? I have done this dance a few times — [drop me a line](/#contact).

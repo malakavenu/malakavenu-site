@@ -1,0 +1,219 @@
+---
+title: "The geometry of streets: what photography taught me about systems"
+description: "Frames first, subjects second. Lines, light, and the small geometries of cities — and the surprising amount of overlap with how I think about software architecture."
+date: '2026-01-12'
+updated: '2026-04-20'
+category: 'Beyond Code'
+tags: ['Photography', 'Composition', 'Craft', 'Beyond Code', 'Street Photography']
+author: 'Malaka Venugopal Reddy'
+---
+
+I've been making street pictures for about eight years now, mostly evenings and weekends, mostly in cities I'm passing through. The work doesn't pay anything. It does something else — it's the practice that has most directly shaped how I think about systems.
+
+This is the essay I keep wanting to read about why.
+
+## Frame first, subject second
+
+The single shift that changed my photography happened the day I stopped looking for subjects and started looking for frames. A doorway with diagonal light. A reflection that splits a window into thirds. A fence that pulls the eye toward a vanishing point. The frame is the structure. The subject is the moment that resolves it.
+
+You wait. You stand there a few minutes, sometimes much longer, watching what passes through. Most of what passes through is wrong. A jogger breaks the diagonal. A delivery van fills the negative space. Then occasionally — once every twenty or thirty frames — a person walks through the geometry at exactly the right angle, exactly the right distance, and the picture takes itself.
+
+The same logic operates in code. The frame is the architecture. The subject is the feature. Most teams design features and then try to fit them into whatever architecture happens to exist. The teams whose work compounds design the frame first — the boundaries, the contracts, the negative space — and then wait for the right features to walk into it.
+
+You can't shoot a great picture by chasing every passing subject. You can't ship a great system by accommodating every passing requirement. The discipline is the same: hold the frame, wait, refuse the wrong subjects.
+
+> **Field note.** When I review a system design, the first question I ask is no longer "what does it do?" It's "what's the frame?" If the answer is a list of features, the system is already in trouble.
+
+## Lines do the work
+
+Beginner street photography over-relies on the subject's expression. The advanced version relies on lines: the diagonal of a staircase, the horizontal of a curb, the implied line between two looking gazes. The eye reads the lines first, then arrives at the subject. By the time the viewer "sees" the person in the frame, the composition has already done its work.
+
+In code: the equivalent of lines is _flow_. The order in which a reader's eye traces a function. The hierarchy a directory tree implies before you read any file. The shape of a state machine before you read any handler. Strong code reads in a clear direction. Weak code makes you scan. The line work is invisible when it's good and exhausting when it's missing.
+
+I write functions differently after eight years of looking at lines. Top of the file is the destination. The middle is the path. The bottom is the support cast. The reader's eye should travel through the file the same way it travels through a well-composed photograph: along an implied diagonal, no scanning required.
+
+### A short taxonomy of street lines
+
+Years of standing on corners has given me a small private vocabulary for the lines I look for:
+
+- **Leading lines** — curbs, rails, shadows on a wall. They point. The picture's job is to give them something to point at.
+- **Implied lines** — the gaze of a person, the trajectory of a thrown ball, the path of a cyclist about to pass. The eye supplies the line; you supply the resolution.
+- **Bisecting lines** — a tram cable, the edge of a building, the seam of a road. They split the frame and create two compositions inside one.
+- **Echo lines** — a railing in the foreground that rhymes with a roofline in the background. Cheap to find, expensive to wait for.
+
+The reason I list these is not for photographers. It's that I now look for the same four kinds of lines in code reviews. Leading lines are the function names that point you to the next function. Implied lines are the variable names that hint at what's coming. Bisecting lines are the boundaries between modules. Echo lines are the patterns that rhyme across the codebase. Code that lacks all four is hard to read for the same reason a flat photograph is hard to look at: there's nothing pulling your eye anywhere.
+
+## Foreground, middle, background
+
+Photographs that feel three-dimensional almost always have something happening at three depths. A railing in the foreground. A figure in the middle. A façade in the background. The eye bounces between the three layers and the flat rectangle becomes a small theatre of space.
+
+Most beginner street photographs have one layer. The subject. Centred. Everything else fading into a beige soup behind them.
+
+Architectural diagrams have the same problem. The good ones are layered: the user-facing surface in the foreground, the orchestration in the middle, the data plane in the background. You can read each layer independently, and you can read the relationships between layers. The bad ones are a single rectangle with sixteen arrows.
+
+Layering is what gives a frame — or a system — depth instead of just content.
+
+## Light and shadow as a geometry tool
+
+Every street photographer eventually learns: don't worry about subject, worry about light. Subject is everywhere; great light is rare. A boring subject in extraordinary light is a great picture. An extraordinary subject in flat light is a snapshot. Walking around a city looking for light is a different activity than walking around looking for subjects, and the pictures from the first activity are categorically better.
+
+Hard light, the kind you get in late afternoon between buildings, is itself a geometric tool. It draws shapes onto walls. It carves shadows that behave like extra elements in the frame. The street becomes a stage with a sharp graphic vocabulary that doesn't exist at noon.
+
+In software, the "light" is the team's energy. A great team in a flat-light moment ships fine work. A boring team in a great-energy moment ships extraordinary work. The variable that explains output most reliably isn't who is on the team — it's the conditions the team is operating in. Whether they're protected from interrupts. Whether the goal is clear and immovable. Whether morale is intact. Whether someone shipped something they're proud of in the last week.
+
+The work of leading a team is the work of finding the light, not assembling more famous subjects.
+
+## Negative space is most of the picture
+
+The first thousand street photographs I made are dense — too much in the frame, every corner doing something, no room for the subject to breathe. The next several thousand are quieter. A figure against a wall. A reflection with a single point of interest. The picture's energy lives in what's _absent_, not what's present.
+
+The same instinct applies to product surfaces. The screens that age well are the ones with the most negative space — the ones that say one clear thing per screen, the ones whose primary action is unmissable because nothing else is competing. The boring-but-correct dashboards. The single-CTA marketing pages that beat the carousel-stuffed ones in conversion testing every quarter for a decade. None of them are visually impressive on first glance. All of them are quietly impressive after you've used them for a year.
+
+Building negative space into a product takes the same discipline as building it into a frame: you have to refuse the easy additions. Every team has a weekly meeting where someone proposes adding "just one more" CTA, badge, or notification dot. The team that ships the best product in 2026 is the team that says no most often, and the cumulative result looks like clarity.
+
+## Patience is the actual skill
+
+Speed is the mythology of street photography — the camera-as-reflex, the shooter who fires in a quarter of a second and walks on. There's a kernel of truth in it. The shutter, when it goes, has to go fast.
+
+Everything before the shutter is patience.
+
+The shooters I respect most stand still. They don't walk fast streets quickly trying to find pictures. They find a frame, lean against the wall opposite it, and stay. Twenty minutes. An hour. Two. The frame is bait. Eventually the city sends them what they were waiting for. If it doesn't, they leave with no picture, and that's also a successful afternoon, because they refused to make a bad one.
+
+Patience is the muscle the work actually trains. Not eye, not technique, not gear — patience to wait for the right thing in a world that constantly offers the wrong thing.
+
+> **Field note.** Half my best engineering decisions are decisions to wait. Not yet rolling out the migration. Not yet picking the framework. Not yet rewriting the module. The decision to wait is almost never celebrated. It is almost always the right call.
+
+The mythology of speed exists in software too. Move fast, ship daily, never block. The teams that compound, in my experience, are the ones who can sit still in front of the right frame and refuse the wrong subject for as long as it takes. Speed at the moment of the shutter, patience everywhere else.
+
+## Ethics of the frame
+
+The camera is a small machine of power. You point it at a stranger. You take something from them they didn't agree to give. You publish it, sometimes, to an audience they'll never see. You can dress this up however you like — _it's documentary, it's art, it's the public street_ — and there's truth in those framings. There's also a debt.
+
+I've thought about the ethics of street work for as long as I've made it, and the position I've landed in is roughly this:
+
+- **The street is public; people on it are not props.** The legal right to make the picture is not the moral right to publish it. Those are different decisions.
+- **Closer is more honest.** Long-lens stalking from across the street is a worse practice than a short-lens approach where the subject sees you. Make eye contact. Lower the camera if asked. The picture you don't take because someone said no is a picture you should be glad you didn't take.
+- **Power asymmetry matters.** I'm cautious about photographing people in vulnerable situations — sleeping in doorways, in distress, mid-argument. The picture might be powerful. The cost to the subject might be enormous. There's no exposure compensation that fixes that math.
+- **Children, by default, no.** If a child is incidental to a wider frame, fine. If they're the subject, ask the parent or skip the frame.
+- **Faces and context.** A recognisable face in a neutral context is one thing. A recognisable face attached to a story I'm projecting onto them is another.
+
+I publish a small fraction of what I shoot. The cull is partly aesthetic and partly ethical. Both filters matter. A picture I love that I don't have the right to publish is a picture I keep on a hard drive and look at sometimes, alone.
+
+The same ethics question runs through software work. Just because we _can_ collect, store, infer, surface — doesn't mean we should. Consent and proportionality are not separate from craft. They're part of it.
+
+## Street photography vs street videography in 2026
+
+Phones shoot 4K video by default. Every passing tourist is, technically, a documentarian. The question I get asked more than any other now is whether stills photography on the street still matters when you can pull a frame out of a video file.
+
+Yes, and for a specific reason. A still is a decision. A video is a recording.
+
+The act of choosing _this_ moment, _this_ frame, _this_ exposure, and committing to it forces a kind of attention that scrubbing a timeline does not. You learn to see in the future tense — to recognise a picture three seconds before it happens — because by the time it's happened, the shutter is already down. You can't develop that muscle by extracting frames from footage. The two practices look similar from the outside; they are completely different from the inside.
+
+Video has its own discipline and its own ethics, and people who do it well do it well. But the still photograph as a form is not endangered by the existence of video. It's clarified by it. Stills are about the decision; video is about the duration. They coexist the same way the haiku coexists with the novel.
+
+## Gear notes (briefly)
+
+The amount of equipment writing in photography is unbearable, and I won't add to it. My setup is constraint-driven, and the constraints are most of the value:
+
+- **One body, one lens.** A small camera. A 35mm-equivalent prime. The same kit for years. No zoom, no swap, no decision to make at the moment of the picture.
+- **Manual or aperture-priority.** Auto-everything trains you out of seeing light. Setting your own exposure trains you into it.
+- **No screen-chimping.** I tape over the rear LCD on long sessions. Looking at the picture you just took ruins the picture you're about to take.
+- **One memory card per outing.** Limit the volume. Force the cull.
+- **Phone in airplane mode.** The notification is the enemy of the frame.
+
+The point of all of this is not asceticism. It's that constraints make you better, faster, than gear does. The camera doesn't matter much past a certain point. The discipline of using the same camera every day for a year matters enormously.
+
+In code I run the same way. Same editor for years. Same shell. Same handful of utilities. Same boring stack as a default. Tooling is the kind of thing that should change rarely and only for strong reasons.
+
+## A few small stories
+
+I want to leave behind the analytical voice for a few minutes. Some of what photography teaches is not propositional. It comes through stories.
+
+### The corner in Florence
+
+There's a corner near Santa Croce where, in late October, around five in the afternoon, the sun cuts through a narrow alley and lands as a single rectangle of gold on the cobblestones across the street. I found it by accident the first day I was in the city. I went back every afternoon for a week.
+
+I made about four hundred frames of that rectangle. Most of them are pigeons, scooters, people on phones not noticing the light. Two of them are good. One of them is a kid who walked into the rectangle with both hands raised, holding a balloon, for less than a second.
+
+I waited maybe nine hours, total, for that one second. It still feels like a fair trade.
+
+### The hour I waited for a single jogger
+
+A bridge in a city I won't name. A diagonal handrail that intersected with the line of the river behind it at a perfect angle. The frame was already a picture; it just needed somebody.
+
+I stood there for an hour and twenty minutes. People kept passing through. None of them at the right speed, the right size, the right shape against the rail. Eventually a jogger came up the bridge from the far side, hit the rail at the moment the light caught their face, and the frame closed. One frame. Two seconds.
+
+I packed up and walked away. There is nothing more to do that day. The picture you came for is in the camera; everything after it would be filler.
+
+### The market that taught me to leave
+
+A morning market in a coastal town. Crates of fish, light bouncing off ice, three vendors arguing in a language I didn't speak. Visually overwhelming. I shot for half an hour and made nothing.
+
+What I learned: when a place is loud, it's almost impossible to make a quiet picture. The eye has nowhere to land. The exception is a single isolated subject against the noise — a vendor leaning against a wall, alone for two seconds before the next crate arrives. I waited for it. I left when I had it. I did not stay for "more."
+
+Knowing when to leave is a skill. In photography. In code. In meetings.
+
+### The face I didn't shoot
+
+An older man on a tram bench, staring at something I couldn't see. The light was good. The frame was good. He looked tired in the specific way that people look tired when life has worn them down, not when they've had a long day.
+
+I lowered the camera. The picture would have been strong. Publishing it would have made me a thief.
+
+I sat down on the next bench and we rode three stops in silence. That was the picture.
+
+## What I take back to the keyboard
+
+Eight years of looking through a small viewfinder has done four things to how I work:
+
+1. **I design the frame first.** The architecture, the contracts, the negative space. Features later.
+2. **I read code for line work.** The flow through the file is the artefact. If it's hard to scan, it's wrong.
+3. **I prefer quiet surfaces.** Most "richness" in product UI is visual debt collecting interest.
+4. **I trust preparation.** Most clutch saves are preparation revealing itself. Most disasters are improvisation that ran out of road.
+
+Photography isn't a hobby I do alongside the work. It's the thing that has most shaped how the work feels.
+
+There's a fifth thing too, that I'm still learning. Photography has slowly disarmed my reflex to add. To add another element, another paragraph, another feature, another line. The discipline runs the other way: subtract until what remains is the picture.
+
+## If you want to start
+
+People ask me how to begin street photography more often than any other question. The advice I keep giving, refined over a few years of giving it, is below. It's a month-long practice plan. It assumes you have any camera, including a phone.
+
+### Week 1 — One block, one hour, twice
+
+Pick one block within walking distance of where you live or work. Walk it slowly for an hour, twice during the week. Don't change the route. Don't take many pictures — five at most per outing. The exercise is to look. You'll be bored after fifteen minutes. Stay. The boredom is the point. Past it is when you start seeing.
+
+By the end of the week you'll know which corners catch light, where the foot traffic flows, and which two or three spots could become frames if you waited.
+
+### Week 2 — One frame, one wait
+
+Pick one of those spots. Stand there for an hour. Camera ready, exposure set. Watch what passes through. Shoot only when something resolves the frame — and accept that most of the hour, nothing will. If you make zero pictures, that's a successful session. You held the frame.
+
+Do this twice this week, in different light. Late afternoon and early morning are the easiest places to start. Midday flat light is the hardest. Save it for week 3.
+
+### Week 3 — Light first, frame second
+
+Walk for two hours, two evenings this week, looking only for light — not for subjects, not for frames, just for areas where the light is doing something interesting. Backlit alleys. A patch of sun in shadow. Hard reflections off glass. When you find one, only then start looking for the frame around it, and only then for the subject inside the frame.
+
+This is the inversion most people never make. Light, then frame, then subject. Once it clicks, your hit rate jumps.
+
+### Week 4 — Cull, brutally
+
+Take everything you shot in the first three weeks and pick five frames. Not fifty. Five. Print them, even small, even on regular paper. Pin them above your desk.
+
+Look at them for a week. Notice what they have in common. That's your eye starting to declare itself.
+
+Repeat months 2 and 3 with new blocks, new frames, new light. Within a year you will have a body of work that says something about how you see, and you will be a different reader of systems by accident.
+
+## The thread back to software
+
+I've kept the parallel to code lightly throughout this essay because not every photography insight maps cleanly onto software, and forcing the mapping cheapens both. But the throughline is real:
+
+Both crafts reward patience over speed, frame over subject, restraint over addition, and preparation over improvisation. Both punish the people who chase the latest piece of equipment instead of doing the boring work of looking. Both have a small core of practitioners who quietly compound for decades while a louder layer churns through trends.
+
+If you do one of them seriously, the other gets quietly better, whether you intended it or not. That's been the gift, for me. Eight years of standing on corners has made me a better engineer, in ways I couldn't have predicted and can't fully explain.
+
+Go stand on a corner. See what happens.
+
+---
+
+Other essays in this Beyond Code series live alongside the writing here — [browse the rest](/articles).

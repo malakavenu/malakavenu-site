@@ -1,0 +1,426 @@
+---
+title: "The design engineer in 2026: from rare role to recruiting priority"
+description: "Why the seam between design and engineering finally has a name, what design engineers actually do day-to-day, and how to grow into the role from either side."
+date: '2026-01-18'
+updated: '2026-01-18'
+category: 'Career'
+tags: ['Design Engineering', 'Career', 'Frontend', 'Design Systems', 'Craft']
+author: 'Malaka Venugopal Reddy'
+---
+
+Five years ago "design engineer" was a job title at maybe a dozen companies, and the people doing the work elsewhere were called "the designer who codes" or "the front-end person with taste." In 2026, it's a named role on most product engineering ladders, with its own competency framework and increasingly its own salary band.
+
+Worth thinking about why. The role didn't appear because someone invented it. It appeared because the boundary between design and engineering finally got expensive enough that ignoring it became the more costly option.
+
+I started as a UI/UX designer. I grew into a frontend architect. The middle of that trajectory is exactly where the role lives, and watching it become a real job title rather than a personal accident has been one of the more validating arcs of my career. This is the long version of every career-conversation Slack thread I've had since the title started showing up on JD pages.
+
+## What broke
+
+For most of the 2010s, the design → engineering handoff worked because:
+
+- Designs lived in static files (Sketch, then Figma).
+- Engineers translated those files into code by hand.
+- The translation step was where craft lived.
+- A "good front-end engineer" was one who closed the gap between mock and ship.
+
+It was inefficient — a designer drew a thing, an engineer rebuilt that thing, both got frustrated when the rebuild didn't match — but it worked because everyone agreed that the rebuild step was where the craft happened. It wasn't waste; it was where the product was made.
+
+Three things eroded that model:
+
+1. **Design systems matured.** The translation step became less judgement-heavy and more mechanical: pick the right component, plug in the right tokens, follow the documented pattern.
+2. **AI tooling collapsed the routine 60%.** Cursor, Figma Make, MCP-aware DSs — the mechanical work of "translate this Figma into JSX" stopped being where engineering time went.
+3. **Quality became a moat.** With shipping cheap, the differentiator moved upstream — to the small, taste-driven decisions that nobody specifies because they can't be specified.
+
+The role that survives that environment is the one that holds both ends: enough engineering to ship at quality, enough design taste to know what "quality" means without being told.
+
+## Why the role is suddenly hot — three converging forces
+
+### Force 1: Design systems matured
+
+The shadcn/Radix/Tailwind stack lowered the build bar dramatically. You no longer need a 30-person front-end platform team to ship a credible design system. A small DS team plus a vendored set of headless primitives gets you 80% of what an in-house build used to cost, in a quarter instead of a year. The role that benefits is the small, opinionated builder — the design engineer.
+
+### Force 2: AI commoditised the routine 60%
+
+Translating mocks to code is now a Cursor task. The differentiating skills are upstream (DS shape, component API, pattern library) and downstream (taste, polish, last-mile craft). Both are design engineer territory. The middle, where most front-end roles used to live, has largely been eaten.
+
+### Force 3: Craft is the moat
+
+The products winning attention in 2026 are doing it on craft, not on feature parity. When five products solve the same problem, the one with the better empty state, the better focus rings, the better animation timing, and the better error messaging wins. Hiring a design engineer is the most direct organisational investment in craft.
+
+These three forces independently explain a fraction of the trend. Together they explain why every product company past Series A now lists the role on its careers page.
+
+## What design engineers actually do (in 2026)
+
+If you sat behind one for a week, you'd see them spend time in roughly five places.
+
+### 1. Component & system work (~30%)
+
+Designing, building, and maintaining the design system primitives. Choosing the right abstraction. Writing the variant API. Making the component composable enough to handle the next 18 months of product asks without becoming a 47-prop monster.
+
+Specifically:
+
+- New component design (every couple of weeks).
+- Variant additions and prop API evolutions on existing components.
+- Migrating product code onto new component versions.
+- Writing `use_when` / `do_not_use_when` docs.
+- Maintaining the kit/MCP descriptors AI tools consume.
+- Versioning, changelog discipline, deprecation schedules.
+
+Concrete example from a recent week: shipped a new `Combobox` primitive for an existing DS. Two days of design work in code (no Figma — the design is the code), one day of variant exploration, half a day on accessibility (keyboard nav, screen reader announcements, IME support), half a day on docs. Five days, one component, used in seven product surfaces within a month.
+
+### 2. Polish passes (~25%)
+
+Taking a feature that "works" and making it _feel right_ — micro-interactions, focus states, loading transitions, error empty-states, the spacing of the third element from the left. The work that doesn't appear in any spec but that customers register subconsciously.
+
+Specifically:
+
+- Final-week polish on every shipping feature.
+- Empty states, loading states, error states across the product.
+- Micro-interaction work (hover, press, drag, drop, success feedback).
+- Animation timing and easing decisions.
+- Cross-browser visual QA.
+- Mobile-specific polish (touch targets, keyboard avoidance, reduced motion).
+
+This is the work that's invisible until it's missing. A design engineer's product looks more expensive than its competitors at the same feature parity. That's where the leverage shows up.
+
+### 3. Prototyping (~20%)
+
+Building the first working version of a new product surface — quickly, in code, with real data. The artefact that replaces a static mock and unblocks a design conversation that pixels couldn't have.
+
+Specifically:
+
+- Net-new feature prototypes for product validation.
+- Make-generated drafts integrated and refined.
+- Stakeholder demo surfaces.
+- Internal tool prototypes that get promoted to real internal tools.
+- Hackathon and quarterly-explore work.
+
+The leverage of a design engineer here is wild. Three days of prototyping work can save a quarter of misdirected build effort. Most product orgs underuse this lane because there isn't a person who can credibly own it end-to-end.
+
+### 4. Cross-team enablement (~15%)
+
+Helping product engineers compose DS components correctly. Reviewing PRs for craft. Pairing on tricky animations. Writing the "use this component when…" doc that nobody else writes.
+
+Specifically:
+
+- Code review on every PR that touches a product surface.
+- Pairing with product engineers on hard CSS, layout, accessibility.
+- Office hours / office-hours-equivalent for "is this the right pattern?" questions.
+- Maintaining the canonical examples library.
+- Lunch-and-learn sessions on whatever the team needs (animation, a11y, DS internals).
+
+This is the slice that's hardest to staff and easiest to undervalue. A design engineer doing this lane well lifts the floor of the entire engineering team's craft. The metric is invisible (everyone's PRs got 10% better), the impact is enormous.
+
+### 5. AI-assisted production work (~10%)
+
+Prompting AI tools against the DS, reviewing the output, integrating it into the codebase. This is the slice that grew fastest in 2026; a year ago it was 0–2%.
+
+Specifically:
+
+- Generating component variants in Cursor or Claude Code with MCP access to the DS.
+- Driving Figma Make for prototype generation.
+- Reviewing AI-generated PRs (more frequent now than human-generated DS PRs).
+- Updating kit/MCP descriptors when AI output drifts.
+
+The exact ratio shifts by company. The shape doesn't. If you've been told a design engineer "just builds components," the 30% number for system work tells the rest of the story.
+
+## The broken handoff problem this role solves
+
+A specific failure mode I've watched repeatedly. A designer hands an engineer a Figma file. The engineer rebuilds it. The result is technically correct and emotionally wrong:
+
+- Spacing is off by 2px in three places.
+- Hover states aren't designed; the engineer guesses.
+- Focus states aren't designed; the engineer often forgets.
+- Empty state was a single sentence in the file; the engineer ships the literal sentence.
+- The animation was an afterthought in the file; the engineer skips it.
+- The mobile layout was inferred from the desktop; both are wrong.
+
+The designer's response to this is "they didn't follow the spec." The engineer's response is "the spec didn't cover any of this." Both are right.
+
+A design engineer eliminates this conversation. They own the artefact end-to-end. The "spec" lives in their head and in their PR; the gap closes because there's nothing to hand off across.
+
+This is the single biggest practical reason the role exists. Not "we needed someone to make things pretty." We needed someone to remove a structural bug in how product surfaces get built.
+
+## Day in the life — narrative
+
+A composite of recent Tuesdays. Names changed; ratios real.
+
+**9:00 — Catch-up.** Skim PRs from yesterday. Two from product engineers I want to review. One from an AI-generated DS contribution.
+
+**9:30 — DS review.** AI-generated `Toast` variant PR. Catches: missing `aria-live`, hover state inconsistent with the rest of the system, no reduced-motion variant. Add comments, request changes. Note the missing `aria-live` is the third time this week — update the kit's accessibility section so the next generation gets it right.
+
+**10:30 — Design pairing.** Designer Sara is working on a new search experience. We pair in Figma for an hour, then move to code. By 11:30 we have a working prototype with real search results from staging, hosted on a preview URL. PM is in our DMs by lunch with feedback.
+
+**11:30 — Polish work.** Open the in-flight onboarding feature branch. Spend an hour on micro-interactions: button press feedback, success toast timing, form field focus transitions. Open a PR. Note that the loading state for the third step is wrong; ping the engineer who built it with a one-line code suggestion.
+
+**1:00 — Component work.** Continue building a new `Combobox` primitive. An hour on keyboard nav (arrow keys, home/end, enter, escape, tab to dismiss). Forty minutes on screen-reader announcements (VoiceOver + NVDA, both behave differently and we have to satisfy both). Twenty minutes on a virtualised-list variant for >500 options. Ship a draft PR.
+
+**3:00 — Office hours.** Two product engineers stop by. One needs help with a CSS Grid layout that's nearly working but not quite. We pair for 25 minutes; root cause is a `min-width: auto` interaction with `grid-template-columns: 1fr 1fr`. The other has a question about whether to use `Modal` or `Drawer` for a confirm flow. We talk through the patterns; they leave with a plan.
+
+**4:00 — AI loop.** Cursor session against the DS MCP server. Generate four variants of an existing `MetricCard` for a marketing site refresh. Review the output: three are good, one is wrong because the kit doesn't carry the constraint about icon sizing in compact mode. Add a kit entry for `MetricCard.compact`. Re-prompt; output is now correct. Open a PR for the four variants and the kit fix.
+
+**5:00 — Wrap.** Reply to async questions. Note tomorrow's priorities: finish the `Combobox`, polish the onboarding step three loading state, review the PRs that come in overnight from the EU team.
+
+Five activity buckets, all visible. No one ratio dominates. That's the role.
+
+## Interview signals — technical + taste
+
+The interviews I've designed for this role probe both ends. The technical bar is real; the taste bar is what differentiates.
+
+### Technical prompts
+
+- **Build a `Tooltip` primitive in 45 minutes.** Live coding. Watch for: positioning logic, keyboard accessibility, focus management, portal vs inline rendering, escape-to-dismiss, hover delay handling. Strong candidates land most of these without prompting.
+- **Refactor a 12-prop `Button` into a sensible API.** Watch for: variant taxonomy reasoning, recognising props that should be separate components, naming instincts, deprecation thinking.
+- **Design a token system for a new product**, given a brand palette. Watch for: three-tier reasoning (primitive/semantic/component), naming conventions, dark mode strategy, theming for white-label.
+
+### Taste prompts
+
+- **Show me three product details you admire and explain why.** Listen for specificity. "It feels nice" is bottom quartile. "The empty state has a contextual illustration tied to the filter state, the call-to-action shifts copy based on the user's role, and the focus indicator on the suggestion list is a 2px outline in `color-brand-300` instead of the default" is top quartile.
+- **Critique this screen.** Show them an in-progress design from your team. Listen for whether they catch the things your team caught and the things your team missed. Listen also for tact — bad critics fail this role even with good taste.
+- **What's the last polish detail you shipped that you're proud of?** Listen for whether they can articulate the _why_ — what was wrong before, what changed, what difference it made. The articulation matters as much as the work.
+
+The strongest signal: a candidate who flips between modes naturally — engineering reasoning when asked an engineering question, taste reasoning when shown a design, both modes in the same answer when discussing trade-offs. That fluidity is the role.
+
+## Portfolio shape that gets hired
+
+Three pieces of work. That's it. Quality over quantity, ruthlessly.
+
+- **One end-to-end product feature you owned.** Show the design, the code, the shipped result. Walk through the decisions: why this layout, why this component, why this animation timing. Ten minutes of substance beats an hour of breadth.
+- **One design system contribution.** A component, a token system, a pattern library — something where the artefact is "infrastructure for other people's craft." Show the API and the reasoning behind it.
+- **One craft project.** A side project, an open source contribution, a short rebuild of a public product detail. The point isn't size; it's that you spent your own time on the thing the role is about.
+
+What sinks portfolios:
+
+- Twenty projects, none deep. Reads as scattered.
+- All visual, no code. Reads as designer-who-might-code.
+- All code, no visual sensibility. Reads as engineer-who-likes-CSS.
+- Heavy on tools used (Figma, React, Tailwind, blah). Reads as a CV. Tools aren't the work.
+
+What lifts portfolios:
+
+- Before/after screenshots with annotations.
+- Specific, honest reflection on what didn't work and what you'd do differently.
+- Numbers where they exist (latency, conversion, accessibility scores, lighthouse).
+- Code samples short enough to read and substantive enough to evaluate.
+
+## Two paths into the role
+
+Two paths, depending on which side you start from. Each detailed week-by-week for the first 90 days.
+
+### From design
+
+You probably already have the eye. The leap is operational: ship code to production. A 90-day plan:
+
+#### Weeks 1–3 — Foundation
+
+- Pick a framework. React, almost certainly. Build five tiny things from scratch: a counter, a todo list, a modal, a tabs component, a search filter.
+- Pick a styling approach. Tailwind is the path of least resistance in 2026. Learn it deeply enough that you reach for the right utility without thinking.
+- Get fluent with one editor (VS Code or Cursor). Learn keyboard navigation. Learn debugging.
+- Set up a repo, a deploy pipeline (Vercel/Netlify), a domain. Ship the five tiny things to a real URL.
+
+#### Weeks 4–7 — One real project
+
+- Build a small but real product. A reading list tracker, a personal site rebuild, a tool you actually use. Not a tutorial clone — a thing only you would have built.
+- Make it polished, not prototype-quality. Empty states, error states, loading states, focus states. Dark mode if you want.
+- Deploy. Use it. Iterate based on actually using it.
+- Write about the build. Two posts: one technical, one design. The act of writing sharpens the work.
+
+#### Weeks 8–10 — Component depth
+
+- Build a tiny design system, even just for your one project. Tokens, three components (Button, Card, Input), full accessibility on each.
+- Read the source of a component library you admire (Radix, shadcn, Headless UI). Internalise the patterns.
+- Contribute to one open source DS. Even a docs improvement is fine. The contribution flow itself is the lesson.
+- Get fluent with TypeScript. Component types specifically — generics, polymorphic components, prop forwarding. Doesn't need to be deep; needs to be confident.
+
+#### Weeks 11–13 — Visibility
+
+- Two more polished projects shipped to real URLs. Each smaller than the first but more refined.
+- A short portfolio site. Three projects. Honest write-ups. Real code samples.
+- Apply. The job market is not kind, but the role is hot enough that strong portfolios get responses.
+
+The trap to avoid: trying to become a "full" engineer. You don't need to. You need to be the engineer whose code looks better than everyone else's, ships faster than anyone expected, and never has spacing bugs in code review.
+
+### From engineering
+
+You probably already have the velocity. The leap is taste. A 90-day plan:
+
+#### Weeks 1–3 — Look
+
+- An hour a day in Figma. Build, don't just consume.
+- Pick one product you admire per week. Spend the week reverse-engineering one specific detail of it: how the loading state works, how the focus ring is shaped, how the modal animates in.
+- Write about each one. A paragraph is fine. The act of articulating taste sharpens it.
+- Audit your last five PRs as a designer would. What did you ship that's "good enough" but not _good_?
+
+#### Weeks 4–7 — Ship visual depth
+
+- On your current job, take ownership of the boring stuff: empty states, error states, focus rings, micro-animations. Demonstrate that you care about the small things.
+- Open three "polish PRs" — small, focused, taste-driven. The pattern of opening these establishes you as the person who notices.
+- If you can, shadow a designer for a week. Sit in their reviews. Listen to their critiques. The vocabulary is the half of the work you don't have yet.
+
+#### Weeks 8–10 — DS literacy
+
+- Read the source of a design system you respect. Understand the architecture, not just the API.
+- Contribute one component to an open source DS. Even a small one. Get the feedback.
+- Build something visually ambitious from scratch. Not your day job. Something you'd be proud to show in a portfolio.
+- Develop opinions about animation timing, color theory, type scale. Opinions, not rules — the rules already exist; the opinions about which ones to follow when are the craft.
+
+#### Weeks 11–13 — Reposition
+
+- Update your CV and portfolio to lean on the visual work, not the engineering work.
+- Talk to design engineers in your network. Ask them what they look for. The signals are specific and well-known.
+- Apply, internally if your company has the role, externally otherwise.
+
+The trap to avoid: thinking taste is a personality trait. It's a practice. You build it the same way you built debugging skill — by paying attention to specific examples, repeatedly, over time.
+
+## What the role isn't
+
+A few common misconceptions worth deflating.
+
+- **It's not "designer who can also code a button."** A design engineer ships features end-to-end at a quality bar that holds up.
+- **It's not "engineer who likes CSS."** It includes that, but also includes design system architecture, component API design, and craft-level polish work.
+- **It's not "front-end engineer with extra steps."** Front-end engineers ship features against specs. Design engineers _shape_ the spec, then ship against it.
+- **It's not a junior role.** The work requires both depth and judgement; most strong design engineers are 5+ years into their career, often with a meandering path through both disciplines.
+- **It's not always called "design engineer."** Some companies call it product engineer, UX engineer, design technologist. Same shape.
+
+## "Designer who codes" vs "engineer with taste" vs design engineer
+
+A useful distinction, since the line is fuzzier than the title suggests:
+
+| Dimension | Designer who codes | Engineer with taste | Design engineer |
+|---|---|---|---|
+| Primary identity | Designer | Engineer | Both, fluently |
+| Default tool | Figma | IDE | Both, daily |
+| Owns specs end-to-end | Sometimes | Rarely | Always |
+| Ships to production | Sometimes | Always | Always |
+| Reviews engineering PRs | Rarely | Always | Always |
+| Reviews design PRs | Always | Sometimes | Always |
+| Comp band | Designer | Engineer | Engineer (high) |
+| Career ladder | Design ladder | Engineering ladder | Engineering ladder, increasingly with its own track |
+
+The thing that distinguishes a true design engineer: they don't have to switch _identities_ to switch modes. The design instinct fires while they're writing TypeScript. The engineering instinct fires while they're in Figma. There's no internal context switch.
+
+## Comp benchmarks for 2026
+
+Rough numbers from the US market, for SF/NYC-equivalent ICs at product-led companies. Adjust for geography and size.
+
+| Level | Total comp range (USD) | Years of experience |
+|---|---|---|
+| Design Engineer (mid) | $200K – $260K | 3–5 |
+| Senior Design Engineer | $260K – $340K | 5–8 |
+| Staff Design Engineer | $340K – $480K | 8+ |
+| Principal Design Engineer | $480K+ | 10+ (rare role; ~2024+) |
+| Design Engineering Lead (mgmt) | $400K – $600K | 8+ |
+
+These ranges have moved up roughly 15–20% in the last 18 months as the role's visibility caught up to its leverage. Most product engineering ladders are converging design engineering with senior product engineering at the staff level and above. At the IC1/IC2 levels there's still a small gap; it's closing.
+
+## Ladder design — IC1 to Staff Design Engineer
+
+A ladder I've helped two companies adopt:
+
+- **DE I** — owns components and small features under guidance. Reviews peer PRs for craft. Building the taste muscle.
+- **DE II** — owns features end-to-end. Contributes to DS. Pairs with designers on new flows. Develops a craft point of view.
+- **Senior DE** — leads features across multiple teams. Mentors junior DEs. Owns slices of the DS. Trusted with ambiguous design problems.
+- **Staff DE** — owns DS strategy or a major product surface. Shapes the role itself within the org. Cross-functional influence; the taste bar setter.
+- **Principal DE** — the rarest rung. Multi-year strategic ownership of craft, hiring, and external presence. Often the public face of "this company cares about craft."
+
+Companies past Series B that don't have a ladder this clear typically lose senior design engineers to companies that do. The career legibility matters.
+
+## Team-shape ratios
+
+The numbers I'd target by end of 2026, broken out by product type:
+
+| Product type | DE : PE ratio | Why |
+|---|---|---|
+| Developer tools, design tools, IDEs | 1 : 4 | Craft is the differentiator |
+| Consumer SaaS | 1 : 6 | Polish drives retention |
+| B2B SaaS | 1 : 8 | Less polish-sensitive but still material |
+| Internal tools / enterprise | 1 : 12 | Functional bar dominates |
+
+These are floors, not ceilings. The first DE on a team produces more than 1× leverage; subsequent hires compound. Below the floor, the team ships features but loses the craft race to better-staffed competitors.
+
+## Quality Wednesdays — the implementation
+
+A practical pattern I've seen work at multiple companies: one day a week dedicated to craft. Not a feature day. Not a bug day. A craft day.
+
+What it looks like:
+
+- Engineers spend the day on small craft fixes — focus rings, animation timing, accessibility issues, copy polish.
+- Designers spend the day on craft audits — spotting drift, opening tickets, tightening a flow.
+- Design engineers run the show — triaging the backlog, pairing with whoever needs help, opening their own polish PRs.
+- The PR list at end of day is shared with the company. The cumulative effect is visible.
+
+Quality Wednesdays implementation tips:
+
+- **One day a week, not less.** Less is symbolic and gets dropped first.
+- **Ship the work.** Quality work that doesn't merge has zero impact.
+- **Make the backlog visible.** A shared "craft backlog" board where anyone can add an issue.
+- **Celebrate small.** A weekly internal post highlighting the day's polish ships. Compounds the culture.
+- **Protect the time ruthlessly.** No standups, no planning meetings, no roadmap reviews on Wednesdays.
+
+The teams that ship this consistently look measurably more polished than teams that don't. It's not that the engineers are different; the time is.
+
+## AI tool fluency as part of the craft stack
+
+By end of 2026, AI tool fluency is a competency on every credible design engineer rubric. Not as a separate skill, but as a layer over every existing one:
+
+- **Cursor / Claude Code fluency** for component work and refactors.
+- **Figma Make** for prototype-led design work.
+- **MCP literacy** for shaping how the DS exposes itself to AI consumers.
+- **Prompt clarity** as a writing skill — the ability to specify a generation task tightly enough to get usable output first try.
+- **Output review fluency** — knowing what to look for in AI-generated code, where it tends to fail, what to push back on.
+
+A design engineer who's not fluent with these tools by mid-2026 will be visibly less productive than peers who are. The skill stack expanded; the role didn't change shape.
+
+## How to evaluate a candidate without leaving them feeling tested
+
+The interview that produced the strongest hires I've made: structured as a working session, not an exam.
+
+- **Send them a real PR ahead of time.** From your codebase, ideally one you've already merged. Ask them to review it asynchronously in a doc. See how they think about other people's craft.
+- **In the live session, pair on a real component.** Open Cursor, pull up your DS, give them a half-built primitive, ask them to extend it. Watch the working pattern, not the polished output.
+- **Walk through their portfolio.** Listen for specificity, honesty about trade-offs, articulation of taste. The narrative is the signal.
+- **A craft critique.** Show them a screenshot from your own product. Ask what they'd change. Listen for tact + insight together.
+- **Q&A from them.** Strong candidates ask sharp questions about how the role works in your org, not generic "tell me about culture" questions.
+
+What I've stopped doing: take-home design exercises that take more than two hours, whiteboarding component design from scratch, "trick" CSS questions. These select for interview practice, not for the role.
+
+## Red flags in interviews
+
+A short list of patterns I've learned to weight heavily:
+
+- **Can't articulate why a design choice is good or bad.** Says "it just feels right" or "I don't know, taste." The articulation is part of the role.
+- **Refuses to write code in front of you.** Sometimes an anxiety thing, often a "doesn't actually code much" thing. Worth probing carefully.
+- **Refuses to look at design in front of you.** Mirror image of the above.
+- **Treats the DS as a constraint to fight, not an asset to build with.** Indicates someone who'll reinvent components rather than extend them.
+- **Speaks dismissively about engineering or design.** Either side. The role is held by people who respect both crafts deeply; contempt for either disqualifies.
+- **Has shipped nothing publicly accessible.** A senior design engineer with no public work is a question worth asking. Sometimes legitimate (lots of confidential enterprise work); often a pattern.
+- **Optimises for the next promotion in the conversation.** The strongest design engineers I know are obsessed with the work, not the level.
+
+## What to look for when hiring your first DE
+
+Different from hiring your tenth. The first hire shapes the role at the company. Optimise for:
+
+- **Range over depth in any single direction.** Your first DE will need to flex across components, polish, prototyping, enablement, AI work. Depth in only one of these creates an awkward hire.
+- **Strong written communication.** They'll be the person evangelising the role internally. If they can't write about craft, they can't sell craft.
+- **Comfort with ambiguity.** The role won't be defined yet. They have to build the role as they live it.
+- **Track record of starting things.** Side projects, open source contributions, writing, internal initiatives at past jobs. The pattern of starting matters more than any single artefact.
+- **Genuine enthusiasm for both crafts.** You can't fake this and you can't teach it. Either it's there or you're hiring someone who'll burn out in 18 months.
+
+## Where the role is going
+
+A few predictions I'd defend.
+
+- **Compensation continues to rise** through 2026 and stabilises at parity with senior backend rates. The leverage is now too obvious to underpay.
+- **Most strong product teams will have a 1:6 to 1:8 design engineer–to–product engineer ratio by end of 2027.**
+- **"Design Engineering Lead" appears as a real ladder rung at companies past Series B.** Already at several; will be the norm.
+- **"Principal Design Engineer" appears at the very top end** at a small number of companies where craft is the public differentiator.
+- **The skill stack expands to include "AI-assisted craft work" as a first-class competency**, not a side hustle.
+- **The role's public visibility increases.** More writing, more conference talks, more visible portfolios. The role's lack of visibility was a hiring constraint; that's resolving.
+- **A standardised competency framework emerges** — likely from one of the public-facing companies that's been investing in the role for years.
+
+The honest summary: the role is durable because the underlying problem is durable. Software products live or die at the seam between human intention and machine execution, and somebody has to hold both ends. In 2026, that somebody finally has a job title, a comp band, and a recruiting pipeline pointed at it.
+
+If you're trying to grow into the role, the path is clearer than it's ever been. If you're trying to hire one, the bar is high but the impact is visible within a quarter. If you're trying to understand why your team feels slower than competitors who ship at higher craft, the diagnosis is probably hiding in plain sight on their careers page.
+
+---
+
+Trying to grow into the role from either side? Happy to swap notes — [drop me a line](/#contact).

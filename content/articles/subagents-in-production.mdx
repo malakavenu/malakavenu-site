@@ -1,0 +1,100 @@
+---
+title: 'Subagents in production: when delegation actually pays off'
+description: 'A pragmatic playbook for spawning specialised agents — and the cost, latency and trace patterns nobody warns you about.'
+date: '2026-03-28'
+updated: '2026-03-28'
+category: 'Architecture'
+tags: ['Subagents', 'Multi-Agent', 'Orchestration', 'LangGraph', 'Claude', 'Production AI']
+author: 'Malaka Venugopal Reddy'
+---
+
+There's a moment in every agent project where someone draws three boxes on a whiteboard — _"the planner calls these specialists"_ — and the room nods. Then six weeks later you have a system that's slower, more expensive, and harder to debug than the single-agent version it replaced.
+
+This is the article I wish someone had handed me before that meeting.
+
+## What is a subagent, actually?
+
+A subagent is a fully-isolated agent invocation, called by a parent agent like a tool. It has its own context window, its own system prompt, and returns a single message back to the parent. It is _not_ a thread, a function, or a long-lived service. Think of it as **"a Lambda function whose body is an LLM."**
+
+The shape that's emerged across Anthropic's Claude subagents, Cursor's Task tool, and most LangGraph implementations is essentially identical:
+
+```ts
+parent.spawn({
+  subagent_type: 'code-reviewer',
+  description: 'Review files in src/auth for security issues',
+  prompt: 'Detailed task with all needed context...',
+  model: 'claude-3.5-sonnet', // optional; can differ from parent
+});
+// → returns: { result: string, tokens: number, ms: number }
+```
+
+## When subagents pay off
+
+I've been keeping a tally. The pattern fires in four scenarios:
+
+### 1. Context isolation is the win
+
+Your parent agent is doing a long-running task and you need to grep 40 files for a pattern. Doing this inline burns the parent's context. Spawning a subagent that returns a 200-token summary of "here's what I found" preserves the parent's reasoning capacity. **Most valuable subagent pattern in production, by far.**
+
+### 2. Specialised model selection
+
+Your parent is a reasoning-heavy Claude Opus call. The subagent is a fast classification Haiku call. Per-step cost drops 20×. Latency drops too. This is genuinely free performance.
+
+### 3. True parallelism
+
+Three independent searches, three independent fetches, three independent summaries. Spawn three subagents at once, await all of them. A single agent doing this serially is 3× slower and rarely benefits from the cross-context.
+
+### 4. Trust boundaries
+
+A subagent can be sandboxed harder than its parent — fewer tools, smaller scopes, no internet. Useful when one part of a workflow is touching untrusted user input.
+
+## When they don't pay off (the harder part)
+
+### "Multi-agent collaboration" without a real reason
+
+The most common failure mode I see: a "writer" agent and a "critic" agent passing drafts back and forth. In every case I've audited, the same model with two-pass prompting in a single agent produced equal-or-better results in _half the latency_. The agents weren't collaborating, they were re-uploading each other's work.
+
+### Long conversations across subagent boundaries
+
+Subagents are stateless by design. If your subagent needs the last 8 turns of conversation, you have to serialise and re-send them — and you've now duplicated context, doubled cost, and added a fresh chance for the model to misinterpret old messages. Don't.
+
+## The four cost surprises
+
+Production economics that the "spawn 5 specialists per request" demos quietly hide:
+
+1. **Context duplication.** Every subagent re-pays the system prompt, the tool schemas, and any context you pass it. A 4k-token system prompt × 5 subagents = 20k tokens of pure overhead per request.
+2. **Tail-latency stacks.** If each subagent has p99 of 8s, four sequential subagents have p99 of 32s. You haven't built a multi-agent system, you've built a slow one.
+3. **Trace explosion.** A 6-subagent request produces ~7 spans (parent + 6). Multiply by your QPS. You will outgrow your observability tier.
+4. **Eval combinatorics.** You can no longer eval just the parent. You need evals for each subagent _and_ evals for the parent's choice of which subagent to spawn.
+
+> **Rule of thumb I've landed on:** if a subagent doesn't reduce parent context by &gt;30% _or_ use a cheaper model _or_ run in parallel with peers — you're paying multi-agent cost for single-agent value. Inline it.
+
+## The supervisor pattern (the one that works)
+
+The shape that has worked for me in three different production systems:
+
+- **One supervisor agent** — high-quality model, full conversation context, owns user-facing turns.
+- **A small library of subagents** — each &lt; 6, each with one job, each described by a `SKILL.md`-style descriptor the supervisor reads to decide when to invoke.
+- **Subagents return structured summaries**, not raw tool output. The supervisor can re-invoke if needed.
+- **No subagent calls another subagent**, ever. Single layer of delegation. This one rule has saved me more debugging time than any other.
+
+## Observability: the part everyone underbuilds
+
+If you ship subagents, ship traces from day one. At minimum:
+
+- Parent + each subagent as separate spans, parent-linked.
+- Per-span: model, input tokens, output tokens, ms, tool calls.
+- The exact _reason_ the parent decided to spawn each subagent (the parent's own message immediately preceding the spawn).
+- Eval verdicts attached to spans, not requests.
+
+LangSmith, Langfuse, and Honeycomb's recent OTel-based LLM tracing all do this well. Pick one, but pick one before your subagent count exceeds three.
+
+## Where this is going
+
+The interesting near-future is **skill-spawned subagents**: a skill descriptor that says "I am invoked as a subagent, here is my system prompt, here are my tools." The supervisor doesn't even know it's spawning a subagent — it just invokes a skill, and under the hood the runtime decides whether to inline, spawn, or batch.
+
+Once that lands as standard infrastructure, the multi-agent vs single-agent debate becomes a deployment-time decision rather than an architecture-time one. Which is, finally, where it belongs.
+
+---
+
+Currently building this on AWS Bedrock for an enterprise workflow product — [happy to swap notes](/#contact).

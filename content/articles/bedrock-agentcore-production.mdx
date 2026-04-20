@@ -1,0 +1,400 @@
+---
+title: "Bedrock AgentCore in production: why stateless infra finally broke"
+description: "Runtime, Gateway, Memory, Identity, Observability — what AgentCore actually solves, the cost model under load, and the parts you still need to build yourself."
+date: '2026-03-22'
+updated: '2026-03-22'
+category: 'AWS'
+tags: ['AWS', 'Bedrock', 'AgentCore', 'Agents', 'Production AI']
+author: 'Malaka Venugopal Reddy'
+---
+
+For a decade, "stateless and horizontally scalable" was the right answer to almost every infra question. AgentCore is the first AWS service I've shipped on where that answer is partially wrong — and the architecture choices flow from understanding _why_.
+
+This is what the last six months of running agentic workloads on Bedrock has actually looked like, minus the marketing.
+
+## The mismatch nobody warned us about
+
+A traditional request lifecycle is short, idempotent, and statelessly retryable. An agent invocation is none of those things:
+
+- A single "request" can run for **3–15 minutes** while the model thinks, tools fire, and reflections loop.
+- The intermediate state (scratchpad, partial tool results, planning context) is _the whole product_. Lose it and you've wasted the run.
+- Two requests from the same user need to share memory. Two from different users absolutely must not.
+- Half the tools are external systems with their own auth posture, rate limits, and SLAs.
+- Failures are partial: a tool half-finished, a model mid-stream, a scratchpad with three of five sub-tasks.
+
+You can shoehorn this into Lambda + DynamoDB + Step Functions. People do. It works until your QPS climbs and your cost graph stops looking like a SaaS bill and starts looking like a Bitcoin mining operation.
+
+## What AgentCore actually gives you
+
+Strip away the naming and AgentCore is essentially six primitives. The mental model that unlocked it for me:
+
+| Primitive | What it really is |
+|---|---|
+| **Runtime** | A long-running execution sandbox per agent invocation |
+| **Memory** | Session-scoped + user-scoped state with TTLs |
+| **Gateway** | A managed router that maps tool calls → MCP servers / APIs |
+| **Identity** | Per-session credentials + tool-scoped permissions |
+| **Observability** | Built-in OTel-style traces with token + cost attribution |
+| **Browser / Code Interpreter** | Sandboxed sub-runtimes for "the agent needs to actually do something" |
+
+It's not magic. It's the six things you'd build yourself, sold as one bill, with the security model already correct.
+
+## A reference architecture
+
+The layout that's worked for me in two enterprise products this year:
+
+```text
+                    ┌──────────────────┐
+                    │     Client       │
+                    └────────┬─────────┘
+                             │ HTTPS
+                             ▼
+                ┌────────────────────────┐
+                │  API Gateway + Cognito │
+                │  (rate-limit, JWT)     │
+                └────────────┬───────────┘
+                             │ signed request
+                             ▼
+        ┌────────────────────────────────────────┐
+        │       Bedrock AgentCore Runtime        │
+        │                                        │
+        │  ┌──────────┐  ┌──────────┐  ┌──────┐  │
+        │  │ Identity │  │  Memory  │  │ Tools│  │
+        │  └──────────┘  └──────────┘  └──┬───┘  │
+        │       │            │            │      │
+        │       ▼            ▼            ▼      │
+        │  per-session   session 24h   inline:   │
+        │  STS creds     user 90d      code,     │
+        │  scoped perm   namespaced    browser   │
+        │                                        │
+        │  ┌────────────── Gateway ────────────┐ │
+        │  │  → MCP: jira, github, snowflake,  │ │
+        │  │         internal-api, vault       │ │
+        │  └───────────────────────────────────┘ │
+        │                                        │
+        │  ┌──────────── Observability ────────┐ │
+        │  │  OTel → Langfuse + CloudWatch     │ │
+        │  └───────────────────────────────────┘ │
+        └────────────────────────────────────────┘
+```
+
+Three rules that come with this layout:
+
+1. **Memory is namespaced by session AND user.** Never just one. Cross-contamination bugs in agentic systems are reputation events, not incidents.
+2. **Gateway tool descriptions live in your repo, not the AWS console.** Tagged + versioned + reviewed in PRs. Treat them like API contracts, because they are.
+3. **Every span gets a `request_id` and a `parent_span_id`.** Without this, debugging a 47-step run is impossible. With it, it's tedious but tractable.
+
+## Runtime: the primitive that changes everything
+
+Runtime is the part that genuinely doesn't have a clean Lambda equivalent. A few specifics worth knowing:
+
+- **Sessions are first-class.** Each invocation gets a session id, a sandbox, and a wall-clock budget. Long-running calls don't fight a 15-minute Lambda ceiling.
+- **The sandbox is process-isolated.** Code Interpreter runs in a container that can't see other sessions. This is not a soft promise; it's a hard boundary that's been audited.
+- **You can stream events out mid-run.** Status updates, partial outputs, "agent is now thinking about X" — all of which you'd otherwise have to build with a separate WebSocket layer.
+- **Session checkpoints are automatic.** If a runtime instance dies, the session resumes. You don't write the state machine.
+
+A minimal invocation, the shape I use:
+
+```ts
+import { BedrockAgentCoreClient, InvokeAgentCommand } from '@aws-sdk/client-bedrock-agentcore';
+
+const client = new BedrockAgentCoreClient({ region: 'us-east-1' });
+
+const stream = await client.send(new InvokeAgentCommand({
+  agentId: 'workflow-supervisor',
+  agentAliasId: 'prod',
+  sessionId: `${tenantId}:${userId}:${threadId}`,
+  inputText: userMessage,
+  enableTrace: true,
+  sessionState: {
+    promptSessionAttributes: { tenant_id: tenantId, plan: 'enterprise' },
+    sessionAttributes: { locale: 'en-US' },
+  },
+}));
+
+for await (const event of stream.completion ?? []) {
+  if (event.chunk?.bytes) yield textDecoder.decode(event.chunk.bytes);
+  if (event.trace) recordSpan(event.trace);
+}
+```
+
+Three things to notice:
+
+- `sessionId` is the **only** mechanism that controls memory scoping. Get it wrong and you have a cross-tenant bug.
+- `enableTrace: true` is non-optional in production. Disable in load tests if you must.
+- `promptSessionAttributes` flow into the prompt template; `sessionAttributes` do not. Easy to confuse.
+
+## Memory: scoping is the whole game
+
+The Memory primitive looks like a key-value store and that mental model is wrong. Memory has two scopes that both matter:
+
+- **Session memory** — bound to a session id, default 24h TTL. The agent's working scratchpad.
+- **User memory** — bound to a user id across sessions, default 90-day TTL. "User prefers metric units", "the user's last project was X."
+
+Two patterns I use religiously:
+
+### Namespace every key
+
+```ts
+// good
+await memory.put({
+  scope: 'session',
+  namespace: `${tenantId}:thread`,
+  key: 'plan',
+  value: planJson,
+});
+
+// bad — collides across tenants if you share an agent across them
+await memory.put({ scope: 'session', key: 'plan', value: planJson });
+```
+
+### Treat user memory as PII
+
+User-scoped memory is regulated data. Encrypt at rest with a customer-managed KMS key, gate access via Identity, and write retention policies into your privacy review _before_ you ship. A dropped row in user memory is a deletion-request failure waiting to happen.
+
+## Gateway: the part that quietly earns its keep
+
+Gateway is the AgentCore primitive I least appreciated until I tried to live without it. What it actually does:
+
+- **Maps tool calls to backend services** (MCP servers, REST APIs, internal Lambdas).
+- **Handles auth per backend** — OAuth flows, IAM roles, API keys, all surfaced uniformly.
+- **Enforces per-session permission scopes** — tool A is callable in tenant X's session, not tenant Y's.
+- **Provides one place to version tool descriptions** — your model sees the same tool catalog you do.
+- **Caches tool descriptors so the model doesn't re-fetch them per turn.** Small thing; meaningful at scale.
+
+A Gateway tool registration, in the shape I write:
+
+```ts
+{
+  "tool_id": "jira_tickets_create",
+  "version": "v3",
+  "description": "Create a Jira ticket. Use when the user explicitly asks to file an issue. Do NOT use to update existing tickets — use jira_tickets_update.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "project_key": { "type": "string", "enum": ["ENG", "OPS", "SEC"] },
+      "summary": { "type": "string", "maxLength": 200 },
+      "description": { "type": "string" },
+      "priority": { "type": "string", "enum": ["low", "medium", "high"] }
+    },
+    "required": ["project_key", "summary"]
+  },
+  "backend": {
+    "type": "mcp",
+    "server": "jira-mcp",
+    "method": "tickets.create"
+  },
+  "scopes": ["jira:write"],
+  "rate_limit": { "rpm": 30, "burst": 10 },
+  "idempotency_key": "header.x-request-id"
+}
+```
+
+The descriptor lives in our monorepo. PRs require sign-off from the owning team. CI publishes to Gateway on merge. The console-edit pattern doesn't exist in our deploy.
+
+## Identity: the security primitive that justifies the bill on its own
+
+The pattern that's saved me weeks of writing per-tenant token-vending logic:
+
+- **Per-session credentials.** Each invocation can call AWS APIs with an STS token scoped to that session. The session can read the customer's S3 bucket; it cannot read another customer's.
+- **Per-tool scopes.** A session that has `jira:read` cannot call `jira_tickets_create` even if the model invents the call. The Gateway enforces this before the request leaves AgentCore.
+- **OAuth offload.** When the agent needs the user's GitHub credentials, Identity handles the OAuth flow, stores the token (encrypted, KMS-backed), and provides it to the relevant tool only.
+
+The thing I would rebuild myself, if AgentCore disappeared tomorrow, is exactly this. It is the hardest part to get right and the most expensive to get wrong.
+
+## Observability: integrate, don't replace
+
+The built-in tracing is good enough for a smoke test, not enough for production. The pattern I use:
+
+- AgentCore emits OTel spans natively.
+- Forward all spans to **CloudWatch** (operational view, alarms, retention) and **Langfuse** (eval-attached view, prompt versioning, cost attribution).
+- Sample non-prod at 10–20%; keep prod at 100%.
+- Tag every span with `tenant_id`, `feature`, `prompt_version`, `model_version`, `agent_version`.
+
+```ts
+import { trace, SpanKind } from '@opentelemetry/api';
+
+const tracer = trace.getTracer('agentcore-bridge');
+
+agentCoreClient.on('trace', (event) => {
+  const span = tracer.startSpan(event.name, {
+    kind: SpanKind.INTERNAL,
+    attributes: {
+      'agent.id': event.agent_id,
+      'agent.session_id': event.session_id,
+      'agent.tenant_id': sessionToTenant.get(event.session_id),
+      'agent.feature': featureFromSession(event.session_id),
+      'llm.model': event.model_id,
+      'llm.tokens_in': event.tokens_in,
+      'llm.tokens_out': event.tokens_out,
+      'llm.cost_usd': computeCost(event),
+      'agent.tool_call': event.tool_id,
+    },
+    startTime: event.start_ms,
+  });
+  span.end(event.end_ms);
+});
+```
+
+Three things this enables that the built-in console doesn't:
+
+1. **Cost attribution per feature.** "Search costs us $X/day. Onboarding costs us $Y/day." Without this, every cost conversation is speculation.
+2. **Eval verdict attached to traces.** A span isn't just "ran successfully" — it's "ran successfully and produced an output our judges scored 4/5."
+3. **Joinable to your existing observability stack.** Your SREs already know Langfuse / Honeycomb / Datadog. Don't make them learn a new console for a different reason.
+
+## Cost model worth knowing
+
+The AgentCore bill breaks down into roughly:
+
+| Component | % of bill (typical) | Notes |
+|---|---|---|
+| Model inference | ~60% | The dominant lever. Use sub-models, prompt caching, reflection-not-collaboration. |
+| Runtime time | ~20% | Cap session length aggressively. Runaway 4-hour sessions are real. |
+| Memory + Gateway | ~10% | Cheap; don't overthink it. |
+| Egress + observability | ~10% | Sample non-prod; keep prod at 100%. |
+
+The 60/20 split flips compared to traditional serverless workloads (where compute time dominates). Plan capacity and alarms around _model spend per session_, not invocation count.
+
+A cost ceiling pattern I deploy in every product:
+
+```ts
+async function invokeWithCeiling(args: InvokeArgs) {
+  const ceiling = ceilingForTenant(args.tenantId);
+  let usedCents = 0;
+
+  for await (const ev of agentCore.invoke(args)) {
+    if (ev.trace?.cost_usd) {
+      usedCents += ev.trace.cost_usd * 100;
+      if (usedCents > ceiling) {
+        await agentCore.cancel(args.sessionId);
+        throw new BudgetExceededError(args.sessionId, usedCents, ceiling);
+      }
+    }
+    yield ev;
+  }
+}
+```
+
+Discovering you spent $1,400 because a planner looped is not a fun way to learn that managed services don't manage your judgement.
+
+## AgentCore vs hand-rolled (Lambda + DynamoDB + Step Functions)
+
+The honest comparison, both directions:
+
+| Concern | AgentCore | Hand-rolled |
+|---|---|---|
+| Long-running execution | Native, 15+ min sessions | Step Functions Standard or ECS task; both work, both add complexity |
+| Per-session memory | Built-in, scoped, TTL'd | DynamoDB + your namespacing logic; easy to ship the off-by-one tenant bug |
+| Tool routing | Gateway, declarative | Lambda fan-out + auth code per backend |
+| Identity | STS-scoped per session | Custom token vending; the part that bites |
+| Streaming | Built-in event stream | API Gateway WebSockets + pub/sub plumbing |
+| Code Interpreter | Sandboxed primitive | EKS pod or Firecracker; weeks of setup |
+| Observability | OTel-native, exportable | DIY against Langfuse / OTel |
+| Time to first prototype | Days | Weeks |
+| Cost at low QPS | Slightly higher than Lambda | Slightly lower |
+| Cost at high QPS | Comparable | Comparable, after you build all the above |
+| Engineering time over a year | Weeks | Months |
+
+The pattern: **at low QPS, hand-rolled is cheaper in dollars but more expensive in engineering time. At high QPS, the dollars converge and the engineering-time gap widens further. AgentCore wins on TCO for any team smaller than 10 engineers with anything bigger than a prototype.**
+
+## MCP integration patterns
+
+Gateway speaks MCP natively. The patterns I use:
+
+### One MCP server per logical domain
+
+`jira-mcp`, `github-mcp`, `internal-billing-mcp`. Don't merge them. The blast radius of a bad MCP server should match the blast radius of the domain it owns.
+
+### Treat MCP descriptors as API contracts
+
+The MCP server's tool descriptors get the same review treatment as Gateway's tool descriptors — PR-reviewed, versioned, with eval rows. The Gateway descriptor and the MCP descriptor must stay in sync; a CI step verifies this on every deploy.
+
+### Scope MCP servers to read-only by default
+
+MCP servers default to read scopes; write scopes require an additional approval. Most "the agent did something destructive" incidents come from a write scope nobody questioned.
+
+### Cache descriptor catalogs
+
+The Gateway caches MCP tool descriptors. Make sure you bust the cache on descriptor change — the most subtle MCP-related bug I've debugged was a 24-hour-stale tool description quietly causing the model to call a renamed tool.
+
+## Where it pays off immediately
+
+Three workloads where AgentCore was unambiguously the right call:
+
+1. **Long-horizon document agents.** The "read 200 pages, produce a 5-page brief" pattern. Runtime + Memory + Code Interpreter; no Lambda timeouts to fight.
+2. **Multi-tool enterprise agents.** When you have 8+ MCP servers behind a single agent, Gateway's routing + auth offload is genuinely worth the price.
+3. **Per-customer isolation.** Identity scoped to a session means a leaked tool call can't cross tenants. Hard to build correctly yourself; trivial in AgentCore.
+
+## Where I still hand-rolled
+
+Three places I tried to lean on AgentCore primitives and ended up writing custom code anyway:
+
+- **Eval harness.** The built-in evaluations are fine for smoke tests; for real regression suites I run Langfuse/Braintrust against the same traces. AgentCore exports cleanly, so you don't lose anything.
+- **Prompt + tool versioning.** Treat your prompts and tool descriptors as application code in Git, not as managed AWS resources. The "console-edit a prompt and it auto-rolls" pattern is a footgun in any team larger than one.
+- **Cost guardrails.** Per-session token caps belong in your application layer, even though Memory has soft quotas. See the ceiling pattern above.
+
+## When NOT to use AgentCore
+
+A short list, because every "it depends" article forgets these:
+
+- **Low-volume internal tools.** A research script that runs three times a week doesn't need the substrate. A Lambda + a Bedrock call is fine.
+- **Strict bring-your-own-cloud requirements.** If your customer requires you to run in their VPC with their KMS keys and no AWS-managed control plane touching their data, AgentCore's managed nature works against you.
+- **Deeply non-AWS stacks.** If your auth is Azure AD, your data is in BigQuery, and your tools are GCP-resident, the round-trip cost (latency and operational) outweighs AgentCore's offerings. Use a graph framework on whichever cloud holds the data.
+- **Highly experimental product surfaces.** When the design changes weekly, the speed of iterating on a local TypeScript file beats the iteration speed of a managed runtime.
+
+## Pitfalls and gotchas (the kind you won't see in a slide deck)
+
+- **Trace truncation at scale.** Long sessions can produce trace events larger than the OTel exporter's default payload. Increase the limit; otherwise you'll silently drop spans.
+- **Session id collisions across products.** Two products in the same AWS account using the same `sessionId` format will share memory. Always prefix with the product name.
+- **Cold starts on rarely-used agents.** First invocation per agent per region can be 4–6 seconds slower. Pin a small warm pool for latency-sensitive agents.
+- **Gateway descriptor size limits.** A descriptor over a few KB will be silently truncated for the model. Compress aggressively.
+- **Cross-region replication of memory.** It exists, it's not free, and it's not instantaneous. Don't rely on it for failover unless your RPO/RTO allows the lag.
+- **IAM role drift.** Per-session STS roles are derived from a base role. If the base role changes, sessions in flight may suddenly lose permissions. Roll IAM changes during low-traffic windows.
+
+## Deployment checklist
+
+Before flipping a new AgentCore-backed feature on for real users:
+
+- [ ] Per-tenant cost ceiling deployed and tested with a synthetic loop.
+- [ ] Memory namespacing reviewed by a second engineer for cross-tenant leakage.
+- [ ] All Gateway tool descriptors PR-reviewed and version-tagged.
+- [ ] Identity scopes set to least-privilege; verified in a separate test session.
+- [ ] OTel forwarding active to both CloudWatch and your eval store.
+- [ ] Eval suite of ≥100 prompts running on every prompt PR.
+- [ ] Routing-eval suite (if you have a supervisor) running in CI.
+- [ ] Cancel-on-budget logic wired and tested.
+- [ ] Alarms configured for: cost per session, session duration, eval pass rate, error rate, tool call failure rate.
+- [ ] Privacy review for any user-scoped memory.
+- [ ] On-call runbook with how to: kill a runaway session, rotate Identity creds, roll a tool descriptor back.
+
+## A short FAQ
+
+**Q: Do I need to commit to Bedrock models, or can I bring third-party models?**
+
+You can bring third-party models via Bedrock's external model surface, but Identity, Memory, and Gateway feel cleanest when paired with first-party Bedrock models. The integration friction with external models is real but manageable.
+
+**Q: How does AgentCore compare to a vendor-neutral graph framework?**
+
+AgentCore is infrastructure; LangGraph (and similar) is orchestration. They are complementary, not competitive. I run LangGraph-style typed-state graphs _inside_ AgentCore Runtimes for the workflows that benefit from explicit graphs. Best of both.
+
+**Q: What's the realistic minimum team size to operate this?**
+
+One platform engineer who owns Gateway descriptors and Identity scopes; one application engineer per agent surface. Below that, you're better off with a hosted agent platform.
+
+**Q: Can I run AgentCore offline / in an air-gapped environment?**
+
+No. If that's a hard requirement, you're back to hand-rolled.
+
+**Q: How do I migrate from Lambda + DynamoDB + Step Functions to AgentCore without a big-bang rewrite?**
+
+Move one workload at a time, starting with the longest-running ones. Keep the existing system running for the high-volume short-running surfaces until AgentCore's cost curve makes the move obvious.
+
+## The honest take
+
+AgentCore isn't a silver bullet. It's a substrate. The hard problems — agent design, tool quality, eval discipline, prompt hygiene, cost guardrails — are still yours. But you stop fighting Lambda timeouts, hand-rolling session stores, and writing your own per-tenant isolation. That's worth a lot.
+
+If you're building agentic systems on AWS in 2026 and you're not at least evaluating it, you're spending engineering time on solved problems.
+
+---
+
+Building enterprise agents on AWS? I'd love to swap architecture notes — [drop me a line](/#contact).

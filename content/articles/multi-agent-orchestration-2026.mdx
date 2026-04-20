@@ -1,0 +1,402 @@
+---
+title: 'Multi-agent orchestration in 2026: four patterns, one rule'
+description: 'Collaboration, planning, tool use, reflection — the supervisor-and-workers shape that survives production, the typed state schema that makes it debuggable, and the cost numbers nobody hands you on a slide.'
+date: '2026-04-02'
+updated: '2026-04-02'
+category: 'Architecture'
+tags: ['Multi-Agent', 'LangGraph', 'Orchestration', 'Agents', 'Production AI']
+author: 'Malaka Venugopal Reddy'
+---
+
+Every team I talk to in 2026 has the same arc with multi-agent systems. Months one and two: "this is magic." Month three: "why is the trace 47 spans long for a 3-sentence answer?" Month five: "we collapsed two of the agents back into one and it's faster and better."
+
+The good news is the field finally has a vocabulary for what works. The bad news is most teams still over-spend before they get there. Here's the shape that's emerged after a year of shipping these in production, breaking them, simplifying them, and shipping them again.
+
+## A short decision flowchart for "should this even be multi-agent?"
+
+Before any of the patterns below matter, run this in prose. I do this in a five-minute conversation with anyone proposing a multi-agent design:
+
+1. **Can a single agent with a single prompt solve this for the median input?** If yes, ship that first. Build evals. Then revisit.
+2. **Where does the single-agent version actually fail?** Latency? Quality on a specific sub-task? Context overflow? Lack of parallelism?
+3. **Is the failure mode something a multi-agent system would structurally fix — or just hide behind more spans?** Hallucinations don't disappear because you added a "verifier" agent. They just move.
+4. **Are you adding agents because the workload requires it, or because the demo looks better?** The honest answer here decides whether you're about to spend three months on something you'll undo.
+5. **Is at least one of `{parallelism, specialised model, context isolation, trust boundary}` clearly true?** If none, stop. You're inventing problems.
+
+I have killed more multi-agent designs in step 5 than I have approved.
+
+## The four patterns that keep showing up
+
+After auditing a dozen production systems, almost every successful multi-agent design is some combination of these four:
+
+### 1. Collaboration
+
+Multiple agents touch the same artefact in turn — a writer + an editor, a planner + an executor. Looks elegant on a whiteboard. In practice, only works when the agents have **structurally different tool sets**. Two Claude Sonnet agents trading edits is a clever way to double your bill.
+
+The pattern earns its keep when:
+
+- One agent has tools the other shouldn't (a search agent feeding a no-internet drafter).
+- One agent runs on materially different latency or cost (cheap classifier feeding expensive synthesizer).
+- One agent operates on a different trust boundary (untrusted-input parser feeding trusted-action executor).
+
+### 2. Planning
+
+A "supervisor" agent decomposes the task into steps and delegates each. The supervisor's job is _routing and recombination_, not execution. The single biggest determinant of whether this works is whether you can describe each downstream agent in one sentence. If you can't, the supervisor will guess wrong.
+
+In practice the supervisor pattern works because it gives you _one place to put the routing logic that matters_. When something downstream goes sideways, you change the supervisor's prompt, not eight worker prompts in coordination.
+
+### 3. Tool use
+
+Agents wrap APIs, the parent calls them like functions. This is the cheapest, most reliable pattern. If you're under-using it, you're probably over-using collaboration. A tool is just a sub-agent that admitted it's a function.
+
+### 4. Reflection
+
+The agent critiques and revises its own output before returning. Often a second LLM pass with a different prompt. Cheaper than spawning a "critic" agent and usually just as good.
+
+I have replaced "writer + critic" two-agent systems with single-agent reflection three times now. Median quality unchanged, latency cut by ~45%, cost cut by ~50%. Reflection inside an agent is almost always the right answer; reflection between agents is almost always over-engineering.
+
+## The organising rule
+
+Here's the heuristic that has saved me more re-architectures than anything else:
+
+> **One layer of delegation. Always.**
+
+A supervisor can spawn workers. Workers cannot spawn workers. The moment you allow nested delegation, you have a system that can spend $40 on a dropdown menu and produce a trace no human can follow. Push back on it every time it shows up in a design doc.
+
+The exceptions to this rule, in two years of running production systems: zero. Every "we need nested delegation here" conversation has, on inspection, been a state schema problem in disguise.
+
+## Typed state channels are the real product
+
+LangGraph popularised the idea, but the principle is broader: a multi-agent system needs a **shared, typed state** that every node reads from and writes to, with explicit reducers. Not a JSON blob you mutate, not a chat history. A schema.
+
+```ts
+type WorkflowState = {
+  user_query: string;
+  retrieved_docs: Doc[];           // append-only
+  analysis: AnalysisResult | null; // single-writer (analyser)
+  draft: string | null;            // single-writer (composer)
+  citations: Citation[];           // append-only
+  status: 'planning' | 'retrieving' | 'analysing' | 'drafting' | 'reflecting' | 'done';
+  trace: {
+    spawned_at: Record<string, string>; // node → timestamp
+    tokens_in: number;
+    tokens_out: number;
+    cost_usd: number;
+  };
+};
+```
+
+Two things follow from this:
+
+- Every node has a contract — what it reads, what it writes, what it can't touch.
+- Replay becomes trivial. You can re-run any step from any state without re-running the whole graph.
+
+If you take one thing from working on these systems: **the state schema is the architecture.** Get it right and the agents are interchangeable. Get it wrong and no agent saves you.
+
+### Reducers as the actual contract
+
+Once you accept the schema-first view, the real architectural moves happen in the reducers. The schema says _what data exists_; the reducer says _what merging that data means_.
+
+```ts
+import { StateGraph, START, END } from '@langchain/langgraph';
+
+const graph = new StateGraph<WorkflowState>({
+  channels: {
+    user_query: { value: (_, b) => b },        // single-writer, last wins
+    retrieved_docs: {
+      value: (a, b) => [...a, ...b],           // append-only
+      default: () => [],
+    },
+    analysis: { value: (_, b) => b },           // single-writer
+    draft: { value: (_, b) => b },              // single-writer
+    citations: {
+      value: (a, b) => dedupe([...a, ...b], 'id'),
+      default: () => [],
+    },
+    status: { value: (_, b) => b },
+    trace: {
+      value: (a, b) => ({
+        ...a,
+        ...b,
+        tokens_in: a.tokens_in + b.tokens_in,
+        tokens_out: a.tokens_out + b.tokens_out,
+        cost_usd: a.cost_usd + b.cost_usd,
+      }),
+      default: () => ({ spawned_at: {}, tokens_in: 0, tokens_out: 0, cost_usd: 0 }),
+    },
+  },
+});
+```
+
+When a junior engineer says "I'll add an agent that updates the analysis", you point at the reducer and say "no — the analyser is the single writer." That's the architecture talking, not you.
+
+## A LangGraph supervisor walkthrough
+
+Skeleton of the layout I keep landing on, deliberately small:
+
+```ts
+import { StateGraph, START, END } from '@langchain/langgraph';
+import { ChatAnthropic } from '@langchain/anthropic';
+
+const supervisor = new ChatAnthropic({ model: 'claude-opus-4', temperature: 0 });
+const worker = new ChatAnthropic({ model: 'claude-sonnet-4', temperature: 0.2 });
+
+async function routeNode(state: WorkflowState) {
+  const decision = await supervisor.invoke([
+    { role: 'system', content: ROUTER_PROMPT },
+    { role: 'user', content: JSON.stringify({
+        query: state.user_query,
+        have_docs: state.retrieved_docs.length > 0,
+        have_analysis: !!state.analysis,
+        have_draft: !!state.draft,
+        status: state.status,
+      })
+    },
+  ]);
+  return { status: parseRoute(decision.content) };
+}
+
+async function retrieveNode(state: WorkflowState) {
+  const docs = await retriever.search(state.user_query, { topK: 6 });
+  return {
+    retrieved_docs: docs,
+    trace: { tokens_in: 0, tokens_out: 0, cost_usd: 0.0008 },
+  };
+}
+
+async function analyseNode(state: WorkflowState) {
+  const out = await worker.invoke([
+    { role: 'system', content: ANALYSER_PROMPT },
+    { role: 'user', content: renderDocs(state.retrieved_docs) },
+  ]);
+  return {
+    analysis: parseAnalysis(out.content),
+    trace: tokensFrom(out),
+  };
+}
+
+async function composeNode(state: WorkflowState) {
+  const out = await worker.invoke([
+    { role: 'system', content: COMPOSER_PROMPT },
+    { role: 'user', content: JSON.stringify(state.analysis) },
+  ]);
+  const draft = String(out.content);
+  const reflected = await worker.invoke([
+    { role: 'system', content: REFLECT_PROMPT },
+    { role: 'user', content: draft },
+  ]);
+  return {
+    draft: String(reflected.content),
+    trace: tokensFrom(out, reflected),
+  };
+}
+
+graph
+  .addNode('route', routeNode)
+  .addNode('retrieve', retrieveNode)
+  .addNode('analyse', analyseNode)
+  .addNode('compose', composeNode)
+  .addEdge(START, 'route')
+  .addConditionalEdges('route', s => s.status, {
+    retrieving: 'retrieve',
+    analysing: 'analyse',
+    drafting: 'compose',
+    done: END,
+  })
+  .addEdge('retrieve', 'route')
+  .addEdge('analyse', 'route')
+  .addEdge('compose', 'route');
+
+export const app = graph.compile();
+```
+
+What's deliberate here:
+
+- The supervisor is **only the router**. It never writes to `retrieved_docs`, `analysis`, or `draft`. Those have single writers.
+- Every node returns a partial state. Reducers handle the merge.
+- The reflection step lives **inside** `composeNode` as a second model call. It is not a separate agent in the graph, because it doesn't need to be.
+- The graph has four nodes and one conditional edge. It traces clean.
+
+## Deep agents vs LangGraph: a trade-off table
+
+The "deep agents" framing — agents that own their own scratchpads, sub-tasks, file systems, memory — is real and useful. It also costs roughly an order of magnitude more per task than an equivalent LangGraph flow. The trade-off, honestly stated:
+
+| Dimension | LangGraph (typed-state) | Deep agents (autonomous) |
+|---|---|---|
+| Determinism | High — graph is explicit | Low — agent decides path |
+| Cost per task | Predictable, low | Variable, ~10–20× higher in my workloads |
+| Latency | Predictable | Highly variable (3s to 5min for similar tasks) |
+| Time to first prototype | Day | Hour |
+| Time to production | Weeks (well-defined edges) | Months (eval discipline is harder) |
+| Debug experience | Replay any node | Replay full session, hope |
+| Best for | Known workflows, regulated environments | Open-ended exploration, research surfaces |
+| Worst for | Truly open-ended tasks | High-volume, low-margin product features |
+
+The honest version: **deep agents are the right default for prototypes, LangGraph is the right default for production.** Most teams should ship a deep agent to learn the workflow, then collapse it into a graph once the shape is clear. Skip the collapse and your unit economics never recover.
+
+## Per-pattern cost dashboard
+
+After two months of running both flavours, the per-pattern cost numbers I've seen, normalised to a single "useful task" unit:
+
+| Pattern | Median tokens | Median cost | p95 latency | Notes |
+|---|---|---|---|---|
+| Single agent + reflection | ~6k | $0.04 | 9s | Default. Cheapest. |
+| Supervisor + 3 workers (typed state) | ~14k | $0.11 | 14s | Good for clear sub-tasks. |
+| Supervisor + 3 workers + per-step reflection | ~22k | $0.18 | 22s | Diminishing returns over previous row. |
+| Deep agent (file system, planner, sub-tasks) | ~120k | $0.85 | 90s | Powerful, expensive, variable. |
+| Naïve "five collaborating agents" | ~45k | $0.36 | 38s | Almost always worse than the supervisor row. |
+
+These are my numbers, not yours. Build the dashboard, watch your numbers, kill rows that don't earn their keep.
+
+## Eval strategy for routing decisions
+
+This is the single most under-built piece of multi-agent observability. You eval the agents but never the supervisor's choice. The supervisor is the riskiest node — it's the one that compounds errors downstream.
+
+### Build a routing-eval dataset
+
+Each row:
+
+```json
+{
+  "id": "route-014",
+  "query": "summarise the Q4 financial results",
+  "expected_route": "retrieve_first",
+  "acceptable_routes": ["retrieve_first", "analyse_directly"],
+  "forbidden_routes": ["compose_directly"]
+}
+```
+
+Run the supervisor on the dataset every CI build. Pass criterion: chose an `acceptable_route`. Hard-fail criterion: chose a `forbidden_route`. Track the ratio over time.
+
+### Trace the reason, not just the choice
+
+Capture the supervisor's _reasoning text_ alongside its routing choice. When a routing eval fails, you want to read the model's chain-of-thought to understand whether the prompt is wrong, the schema is wrong, or the input was genuinely ambiguous.
+
+### Reward-hacking to watch for
+
+If you fine-tune or prompt-optimise the supervisor against the eval set, you will see the model start "playing the test" — picking the safest route every time, even when a riskier one would be better. Mitigate by holding out 20% of the dataset, never showing it during prompt iteration, and treating divergence between the held-out and visible sets as a calibration signal.
+
+## Common anti-patterns I keep flagging
+
+- **The "manager" agent that just forwards messages.** Inline it. Every "manager" I've encountered was a routing function in a costume.
+- **A critic agent that always agrees.** Replace with a single reflection prompt. If the critic disagrees less than 10% of the time, it isn't earning its tokens.
+- **Subagents passing 5k-token blobs back to the parent.** The parent now re-pays attention over them. Have subagents return summaries with pointers, not payloads.
+- **Per-agent system prompts above 1,500 tokens.** You're paying that on every invocation. Compress aggressively or move detail into the tool descriptions.
+- **A "plan" agent that produces JSON the next agent ignores.** Either the plan is enforced by the graph, or it's decoration. Pick.
+- **Cross-agent "memory" that's just a Slack-channel-shaped log.** Either it has a schema, or it's noise. Schemas first; chat second.
+- **One graph for two workflows.** When two products share an orchestrator "for reuse", they end up with a graph that does neither well. Fork the graph; share the worker prompts.
+- **Spawning subagents inside a tool call.** That's nested delegation in disguise. Pull the subagent up to the supervisor level.
+
+## Where teams underspend
+
+The flip side, less discussed:
+
+- **Routing evals.** Covered above. The single highest-leverage thing you can build.
+- **Replay tooling.** If you can't replay a single step against the captured state, your debug loop is "spend $5, watch a trace, guess." Build the replay UI. It pays for itself in week one.
+- **Cost dashboards per pattern.** Tag spans with `pattern: 'planning' | 'reflection' | 'tool_use' | 'collaboration'`. After two weeks you'll know exactly which pattern your stack actually pays for. The answer is rarely the one you'd predict.
+- **Per-node timeout policies.** A worker that hangs at 4 minutes is a worker that costs you a customer. Every node needs a wall-clock and a token ceiling.
+- **Idempotency keys on side-effecting tools.** Multi-agent retries will absolutely cause double-sends if you don't.
+
+## Observability requirements
+
+What I instrument from day one. Skip any of these and you'll regret it within a month:
+
+1. **Span per node.** Parent-linked, with start/end timestamps.
+2. **Token counts in/out per span.** Aggregated to the request.
+3. **Cost per span.** Computed from a pricing table, not the model's word.
+4. **Routing decision per supervisor invocation.** With the reasoning text.
+5. **State snapshot per node entry/exit.** Compressed or sampled if necessary; full in dev.
+6. **Tool call args + result preview.** Truncate to 1k characters per side; full payload behind a click.
+7. **Eval verdicts attached at request close.** Per-feature, per-route.
+8. **Per-tenant tags on every span.** For cost attribution and noisy-neighbour detection.
+
+If your tracing tool doesn't make this easy, switch tracing tools. The discipline beats the brand every time.
+
+## An extended case study
+
+For an enterprise document-workflow product I've been building this year, the original sketch was the textbook over-engineered multi-agent: planner, retriever, summariser, fact-checker, formatter, reviewer. Six agents, nested delegation in two places, a "blackboard" memory all of them wrote to.
+
+What I observed in the first month of preview:
+
+- **Median latency:** 47 seconds. p95: 92 seconds.
+- **Median cost per task:** $0.62.
+- **Eval pass rate:** 71% on a 200-prompt set.
+- **Trace span count:** 18–34 per request.
+- **Mean time to root-cause an incident:** 45 minutes.
+
+Three weeks of focused simplification later:
+
+- **Median latency:** 14 seconds. p95: 22 seconds.
+- **Median cost per task:** $0.11. (5.6× reduction.)
+- **Eval pass rate:** 84%.
+- **Trace span count:** 5–8 per request.
+- **Mean time to root-cause an incident:** ~8 minutes.
+
+What changed:
+
+- Six agents collapsed to three: `retrieve`, `analyse`, `compose`. The fact-checker became a deterministic citation validator. The reviewer became a reflection step inside `compose`. The formatter was a function.
+- Nested delegation removed. The supervisor became a router, not a meta-orchestrator.
+- The blackboard became a typed state with five fields and explicit reducers.
+- Routing evals introduced (initially 40 prompts, now ~180).
+- Per-pattern cost tags added; we discovered that "reflection" was cheap and useful, while "collaboration" between summariser and fact-checker was where 60% of the bill went.
+
+Nothing magical. Just the rules above, applied honestly.
+
+## A concrete shape that has worked
+
+For the same product the production layout that survived three rewrites:
+
+- **One supervisor** (Claude Opus-class) holding the user-facing turn.
+- **Three workers**: `retrieval`, `transform`, `compose`. Each runs a cheaper model and has 1–3 tools.
+- **One reflection step** inside `compose`, not a separate agent.
+- **A typed state object with five fields and explicit reducers.**
+- **No nested delegation. Ever.**
+
+The whole thing fits in a single LangGraph file under 400 lines, traces cleanly in five spans for a typical request, and costs roughly half of the original "supervisor + critic + writer + reviewer + planner" sketch.
+
+## What I'd tell a junior building their first multi-agent system
+
+A short memo I wish someone had handed me:
+
+- Start with one agent. Make it good. Add evals.
+- Resist the second agent until you can name the specific failure of the first one it would fix.
+- If you add a second agent, write the state schema first. Two functions, one schema.
+- Never let workers spawn workers. If the workflow seems to require it, your schema is wrong.
+- Trace from the first commit. Building observability after the fact takes 5× longer.
+- If a "planner" agent is producing JSON the executor ignores, delete the planner and put the plan in the supervisor's prompt.
+- The cheapest agent is the one you didn't build.
+
+## FAQ
+
+**Q: When should I use a graph framework vs writing this in plain TypeScript?**
+
+A graph framework is worth it when you have ≥3 nodes with non-trivial routing or ≥2 conditional edges. Below that, plain async functions and a state object are clearer. Above that, the graph framework's replay/visualisation tooling pays back the abstraction cost.
+
+**Q: Should the supervisor and workers be the same model?**
+
+Almost never. The supervisor wants reasoning; the workers want speed and cost efficiency. Mixing model classes is the single biggest cost lever I have.
+
+**Q: Can the supervisor be a deterministic function instead of an LLM?**
+
+Yes, and frequently should be. If your routing logic is `if state.status == 'X' then 'Y'`, that's an `if` statement, not an agent. Save the model for ambiguous routing.
+
+**Q: How many workers is too many?**
+
+In my experience, more than four workers in a single graph means the supervisor is making more routing mistakes than it's worth. Either decompose into sub-graphs or rethink the workflow.
+
+**Q: What about agent-to-agent protocols like A2A?**
+
+Useful when agents are owned by different teams or different orgs. Overkill when they're all running in the same repo. Don't reach for inter-agent protocols to solve intra-team coordination problems.
+
+**Q: How do I migrate from a deep agent to a typed-state graph without losing capability?**
+
+Watch the deep agent run for a few weeks. Capture its trajectories. The recurring shapes are your graph nodes; the variable parts stay LLM-driven. Most "open-ended" workflows turn out to have ~5 recurring shapes once you have data.
+
+## The honest summary
+
+Multi-agent systems are not better than single-agent systems by default. They're _different_, and they're better when the workload genuinely benefits from one of: parallelism, specialisation, context isolation, or trust separation. Without one of those, you've built a slower single-agent system with a bigger bill.
+
+Pick a pattern, write the state schema, allow exactly one layer of delegation, and instrument before you scale. Everything else is decoration.
+
+---
+
+Designing agentic systems in production right now? I'd genuinely love to compare notes — [drop me a line](/#contact).

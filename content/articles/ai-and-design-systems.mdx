@@ -1,0 +1,481 @@
+---
+title: "AI won't export your Figma — your design system will"
+description: "AI design tools generate 60–70% of structural UI reliably, but only when constrained by a real design system. Without one, you get demos. With one, you get drafts."
+date: '2026-03-05'
+updated: '2026-03-05'
+category: 'Design Systems'
+tags: ['Design Systems', 'AI', 'Figma', 'Variables', 'Design Engineering']
+author: 'Malaka Venugopal Reddy'
+---
+
+I've watched enough product teams try to "let AI generate our UI" to spot the pattern from across the room. The first demo is electrifying. The second is fine. By the fifth, someone has noticed that the generated screens look nothing like each other and nothing like the rest of the product, and the experiment quietly ends.
+
+The reason is structural, not a model problem. Generative AI is excellent at _composition_ within constraints and bad at _invention_ from scratch. A well-formed design system is the constraint. Without one, every generation is a guess.
+
+This is the long version of the conversation I've had thirty times in the last year, with the receipts, the diagnoses, the fixes, and the 90-day plan I use to get a DS into AI-ready shape.
+
+## The 60–70% rule
+
+After running this with multiple teams, the pattern is consistent: AI tooling reliably produces 60–70% of new structural UI when:
+
+- The design system exposes variables (color, spacing, typography, radius, shadow) as first-class tokens.
+- Components are built _from_ those variables, not from raw values.
+- The component library is comprehensive enough to cover most layout needs.
+- The system has documented usage patterns the AI can read.
+
+When all four are true, AI generates UI that fits your product. When any of them is false, AI generates UI that fits the AI's training data — which is to say, generic Tailwind that looks like every other dashboard from the last three years.
+
+The 60–70% number is structural completeness, not pixel-perfection. The remaining 30–40% is what humans always had to do anyway: judgement calls, edge cases, the small craft details that make a product feel coherent. AI doesn't take that work; it gives you back the time you used to spend on the easy 60%.
+
+### Worked example 1: the dashboard
+
+Prompt: "Build a dashboard for a logistics product. Top metrics row, recent shipments table, map of in-transit shipments, alerts feed."
+
+- **Without a DS:** generic Tailwind. Stat cards from any tutorial. Table styling that's competent but not your product. Map embed that doesn't share your color palette. Alerts feed that re-invents your notification pattern. Output is 0% shippable.
+- **With a partial DS (tokens but no patterns):** colors are right, spacing is consistent, but the stat cards have a different visual rhythm than the ones already in production, and the table renders with its own borders instead of the canonical `DataTable`. Output is ~30% shippable; rework cost equals starting from scratch.
+- **With a full DS exposed via kit/MCP:** stat cards use `MetricCard`, table uses `DataTable`, alerts use `NotificationItem`, all spacing/color/type honour tokens. Output is 70% shippable; the remaining 30% is real product judgement.
+
+### Worked example 2: the settings page
+
+Same exercise, settings surface with three tabs (Profile, Billing, Members):
+
+- **Without a DS:** AI invents a tab pattern, an avatar pattern, a member-list pattern, a billing-card pattern. Four inventions per page, at most one of which lines up with anything else in your product.
+- **With a full DS:** `Tabs`, `Avatar`, `MemberRow`, `BillingCard` all exist; AI composes from them. Output looks like your settings page from the first generation.
+
+The pattern is tediously consistent: the work done up-front in the DS removes the work done after the fact in cleanup. There's no free lunch — there's a meal you cook once and reheat for every AI generation that follows.
+
+## The four common DS problems that block AI consumption
+
+A design system that doesn't yet earn its keep with AI tooling typically has one of these problems. I've debugged each at multiple companies; the diagnoses repeat.
+
+### Problem 1: tokens that are fragmentary
+
+Some colors are tokens; some are inline hex codes designers prefer. Result: AI sometimes generates token-based code, sometimes raw hex, no consistent pattern. Output is unusable.
+
+**Diagnosis signal:** grep your component repo for raw hex colors. If you find more than a handful, the system isn't enforced.
+
+**Fix:** zero raw values in components. Lint it. Enforce it. Every value goes through a token. Practical lint rule:
+
+```js
+// eslint-plugin-no-raw-values
+module.exports = {
+  rules: {
+    'no-raw-color': {
+      meta: { type: 'problem' },
+      create(context) {
+        return {
+          Literal(node) {
+            if (typeof node.value === 'string' && /^#([0-9a-f]{3,8})$/i.test(node.value)) {
+              context.report({ node, message: 'Use a token, not a raw hex value.' });
+            }
+          },
+        };
+      },
+    },
+  },
+};
+```
+
+### Problem 2: variables that don't follow a naming convention
+
+`color.brand`, `color-Primary`, `color/secondary/main` all coexist. AI picks one style, output mixes with existing code, drift compounds.
+
+**Diagnosis signal:** ask three designers to name the "brand purple" token from memory. If you get three different answers, the convention isn't real.
+
+**Fix:** one naming convention, documented, enforced via Tokens Studio or equivalent. Three tiers: primitive, semantic, component:
+
+```text
+primitive:  color.purple.500             (raw value)
+semantic:   color.brand.primary          (intent)
+component:  button.bg.primary            (use site)
+```
+
+Components consume semantic. Semantic consumes primitive. Component-level tokens exist for sites where intent isn't enough (e.g., the button's hover state has a different lightness adjustment than other surfaces).
+
+### Problem 3: components without usage docs
+
+The button exists. Nothing tells the AI _when_ to use Primary vs Secondary, _when_ a card needs a header, _when_ a modal is the wrong choice. AI guesses, and guessing produces inconsistency.
+
+**Diagnosis signal:** open the docs page for any component and check whether it has a `When to use` section. Most teams' docs page is "here's the props table." That's not enough.
+
+**Fix:** every public component gets a one-paragraph "use this when…" doc, structured for LLM consumption (clear triggers, clear non-uses):
+
+```mdx
+## Button
+
+### When to use
+User-initiated actions. The single most important action on a surface
+should be the only Primary; secondary actions use Secondary; tertiary
+actions (cancel, dismiss) use Ghost.
+
+### When not to use
+For navigation between pages, use NavLink. For destructive actions
+that need confirmation, use Button with a ConfirmDialog wrapper, not
+Button alone.
+
+### Variants
+- primary | secondary | ghost | destructive
+
+### Sizes
+- sm (32px) | md (40px) | lg (48px)
+```
+
+### Problem 4: patterns that live in designers' heads
+
+The team "always" uses a 16px gutter on cards. It's not a rule anywhere. AI generates 12px and 24px gutters, both technically valid, neither correct.
+
+**Diagnosis signal:** in design review, count how often someone says "we usually do X." Each one is a pattern that isn't documented.
+
+**Fix:** codify patterns as composed components. If "card with 16px gutter" is the rule, ship a `CardLayout` that bakes it in. The AI then composes from that, not from primitives.
+
+This is the change with the highest ROI by far. Every pattern you turn into a composed primitive removes a category of AI mistake permanently.
+
+## What "AI-ready DS" actually means
+
+A useful operational definition. A DS is AI-ready when:
+
+- **Every visual value is a token**, named with a single convention, in three tiers.
+- **Every public component has docs structured for LLM reading** — `use_when`, `do_not_use_when`, props table, examples.
+- **Every product-wide pattern is a composed primitive**, not a tribal rule.
+- **The DS exposes itself either via a kit manifest** (Make Kit, Cursor rules, etc.) **or via an MCP server** (more on this below).
+- **There's a CI check that fails the build on raw values** in components.
+- **There's a visual-regression suite** with canonical examples per component.
+- **There's a single source of truth in Figma**, with a generated pipeline to code.
+
+If all of that is in place, AI consumption mostly takes care of itself. If any of it is missing, fixing that gap is higher leverage than trying any new AI tool.
+
+## The two integration shapes
+
+A short tour of the integration patterns that have stabilised.
+
+### Shape 1: Variables → CSS pipeline
+
+Figma Variables → Style Dictionary → CSS custom properties → Tailwind config → AI tools see them as the available palette. Most mature teams use some version of this.
+
+```text
+Figma Variables (single source of truth)
+  ↓ Variables2Code / Tokens Studio export
+JSON tokens (primitive, semantic, component)
+  ↓ Style Dictionary build
+build/css/variables.css   (CSS custom properties)
+build/tailwind.config.js  (theme.extend.colors / spacing / etc.)
+build/tokens.json         (machine-readable for AI tools)
+  ↓ consumed by
+- product code (Tailwind theme)
+- Storybook docs
+- Make Kit / Cursor rules / MCP server descriptors
+- visual regression suite
+```
+
+Result: AI generates code that uses your tokens by default. The output _looks like your product_ from the first generation, not after a manual cleanup pass. This is table stakes; if you don't have it, do this first, before anything else in this article.
+
+### Shape 2: MCP server over the design system
+
+Your design system exposes an MCP server: components, props, tokens, patterns, examples. AI tools (Claude Code, Cursor, Figma Make) connect to it and reason about your DS as a typed surface, not as a textual hint.
+
+This is the mode that produces the most striking results. A Claude Code session with MCP access to a well-structured DS can compose 100+ variant components in 30–45 minutes — drafts, not finals, but high-quality drafts that would have taken a person a week.
+
+The setup work is real (a few days to expose the MCP server correctly). The payoff is permanent: every AI tool that speaks MCP, current or future, gets the same lift.
+
+## Exposing your DS as an MCP server
+
+This is the part most teams haven't done yet, and the part with the highest ceiling. The architecture sketch:
+
+```text
+┌──────────────────────────────────┐
+│        DS MCP Server             │
+│                                  │
+│  Tools:                          │
+│   - components_list              │
+│   - component_get                │
+│   - component_examples           │
+│   - tokens_list                  │
+│   - patterns_list                │
+│   - pattern_get                  │
+│   - usage_search                 │
+│   - changelog_get                │
+└──────────────────────────────────┘
+              ↑
+              │ MCP protocol
+              │
+┌──────────────────────────────────┐
+│  AI consumers                    │
+│   - Claude Code agentic mode     │
+│   - Cursor                       │
+│   - Figma Make                   │
+│   - internal agent workflows     │
+└──────────────────────────────────┘
+```
+
+Tool descriptors that earn their keep:
+
+```json
+{
+  "name": "component_get",
+  "description": "Return the full descriptor for a single design system component, including variants, props, accessibility notes, use_when, do_not_use_when, and code examples. Use this when you need to compose a component into a generated UI; do NOT use this for tokens (use tokens_list).",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Component name in PascalCase, e.g. 'Button', 'DataTable'."
+      }
+    },
+    "required": ["name"]
+  }
+}
+```
+
+```json
+{
+  "name": "patterns_list",
+  "description": "Return all product-wide composed patterns (FormLayout, PageHeader, EmptyState, ConfirmDialog, etc.). Use this BEFORE composing primitives — most layout work has a canonical pattern.",
+  "input_schema": { "type": "object", "properties": {} }
+}
+```
+
+```json
+{
+  "name": "usage_search",
+  "description": "Search the canonical examples corpus for usages of a component or token. Returns up to 5 short usage snippets with the file context they came from. Use this when you're uncertain about idiomatic composition.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "query": { "type": "string", "description": "Component name or token to search for." }
+    },
+    "required": ["query"]
+  }
+}
+```
+
+The descriptors follow the same rules as any production MCP server: verb-noun naming, `use when` and `do not use when` carried in descriptions, tight schemas, and structured returns. (The principles I wrote about for general MCP work apply directly here.)
+
+A response shape that's worked well for `component_get`:
+
+```json
+{
+  "name": "Button",
+  "import": "@acme/ui/button",
+  "variants": ["primary", "secondary", "ghost", "destructive"],
+  "sizes": ["sm", "md", "lg"],
+  "props": [
+    { "name": "variant", "type": "enum", "default": "primary" },
+    { "name": "size", "type": "enum", "default": "md" },
+    { "name": "loading", "type": "boolean", "default": false },
+    { "name": "leadingIcon", "type": "ReactNode" }
+  ],
+  "use_when": "User-initiated actions. Only one Primary per surface.",
+  "do_not_use_when": "Page-to-page navigation (use NavLink) or destructive actions without confirmation (use ConfirmDialog).",
+  "accessibility": {
+    "role": "button",
+    "keyboard": ["Enter", "Space"],
+    "loading_announces": true
+  },
+  "examples": [
+    "<Button variant=\"primary\" size=\"md\">Save</Button>",
+    "<Button variant=\"ghost\" leadingIcon={<PlusIcon />}>New</Button>"
+  ],
+  "related": ["IconButton", "ButtonGroup", "ConfirmDialog"]
+}
+```
+
+Three things to flag:
+
+1. **`related` is an underrated field.** It teaches the AI which neighbours to consider. If a Primary action needs confirmation, the model sees `ConfirmDialog` and reaches for it.
+2. **`accessibility.loading_announces` is a constraint, not a hint.** AI generators that consume this will set `aria-live` automatically.
+3. **`examples` are short and idiomatic.** Avoid kitchen-sink examples; the AI overweights what it sees.
+
+## Claude Code agentic mode walkthrough on a real DS task
+
+Concrete narrative from a recent piece of work — generating 120+ variants of a card component for a marketing site refresh. With the MCP server in place, the loop looked like this:
+
+```text
+Me: "We need card variants for the marketing site. Three sizes (sm/md/lg),
+     four content shapes (image-top, image-left, icon-only, text-only),
+     two emphasis levels (default, featured), and a dark variant for each.
+     Compose from the existing Card primitive. Generate Stories for each
+     variant. Output: a single MDX docs page that catalogues all variants."
+
+Claude Code:
+  → calls component_get("Card")
+  → calls patterns_list()
+  → calls usage_search("Card")
+  → reasons about valid variant combinations (excludes invalid combinations
+    like "icon-only + image-top")
+  → generates 96 valid variants (3 × 4 × 2 × 2 = 48 in light, mirrored in dark
+    minus the invalid combos)
+  → writes Stories file with all 96
+  → writes MDX docs page with grouped sections
+  → runs the build
+  → returns: "96 variants generated, all pass type-check, all render in
+    Storybook, here is the docs page"
+```
+
+Elapsed wall-clock: 38 minutes. Comparable hand-rolled work: 1 person × 1 week, conservatively.
+
+The output wasn't shippable as-is. Three variants needed manual adjustment for visual rhythm. The MDX docs page wanted a different grouping order. None of that mattered against the time saved getting the structural work done. The design engineer's afternoon was spent on the 4% of decisions worth their judgement; the 96% of mechanical composition work was already done.
+
+The thing that made this work, repeatedly: the DS already had the metadata. The MCP server just exposed it. If the DS had been at "tokens half-done, no usage docs, patterns in designers' heads" — same prompt, same model, output: a generic catalog of cards that would have needed to be thrown away.
+
+## Governance for AI-contributed components
+
+Once AI is generating real DS work, the governance question gets sharper. Three rules I've landed on:
+
+1. **AI-generated components go through the same PR review as human-generated ones.** Same checklist, same approvers, same merge bar. No exceptions for "we generated it from the kit."
+2. **Every AI-contributed PR cites the prompt and the model.** It's metadata for future debugging. When something goes weird six months later, you can re-trace.
+3. **The DS team owns the kit/MCP descriptors.** AI quality is a function of the descriptors; the team responsible for the descriptors is responsible for the AI output downstream.
+
+A useful template I add to AI-generated PRs:
+
+```md
+### AI generation metadata
+- Tool: Cursor / Claude Sonnet 4.6
+- Date: 2026-03-04
+- Prompt: "Generate a DataTable variant with virtualized rows for >5k items.
+   Compose from existing DataTable. Honour all token bindings. Add Stories."
+- Kit version: acme-ds@2.4.1
+- Reviewer: @malaka-vr
+```
+
+Cheap to add, dramatically helpful when something needs auditing later.
+
+## Code-review patterns for AI-generated DS work
+
+What I look for, in order of frequency of issues found:
+
+1. **Raw values in components.** Did the AI smuggle a `#5C5CFF` somewhere? Should always be `var(--color-brand-primary)`.
+2. **Wrong variant of a known component.** AI used `Button` where `IconButton` was right; lint can catch some of this, eyes catch the rest.
+3. **Reinvented patterns.** AI built a custom modal because it didn't know `ConfirmDialog` existed. Diagnosis: kit/MCP missing the entry.
+4. **Accessibility regressions.** Missing labels, missing focus management, missing live regions. Checklist catches these reliably.
+5. **Style drift on hover/focus/disabled states.** AI gets these right ~80% of the time. The 20% needs a human pass.
+6. **Test coverage.** AI usually doesn't write tests unless asked. Ask explicitly.
+7. **Performance gotchas.** Inline lambdas in render, unmemoised expensive components, missing `key` props. AI is improving here but not fully reliable.
+
+This isn't a fundamentally different review than human PRs. The frequencies are different — raw values almost never come up in a senior engineer's PR; they show up in 10% of AI PRs.
+
+## The DS team's leverage doubles
+
+When AI tooling actually works against your DS, the DS team is the highest-leverage team in the org by a wider margin than before. Three concrete ways this shows up:
+
+- **Every improvement to the DS now compounds across both human and AI consumption.** Adding a new semantic token isn't just a cosmetic change; it's a capability uplift for every AI workflow downstream.
+- **DS docs are now production code.** They're not "nice to have for new hires" — they're the input to every AI-generated UI in the company. A poorly documented component degrades AI output for every team that touches it.
+- **DS releases are now product releases.** A new version of the DS doesn't just affect the apps that adopt it; it changes what every AI tool can produce against it. Versioning, changelog discipline, and migration paths matter more, not less.
+
+> **Field note:** the DS team's value used to be measured in component count and adoption. In 2026, it's measured in AI generation quality. Different metric, same craft.
+
+## What changes in component API design when AI is the consumer
+
+Designing components for AI consumption sharpens the same instincts that already made for great human-facing APIs. Specifically:
+
+- **Tighter types beat looser types.** `variant: 'primary' | 'secondary'` outperforms `variant: string`. AI follows enums faithfully; it free-styles strings.
+- **Better names beat clever names.** `iconBefore` and `iconAfter` beat `icon` with an `iconPosition` prop. AI infers from the name; if the name carries the meaning, no second prop is needed.
+- **Explicit non-uses.** Every component description benefits from a `do_not_use_when`. This single field probably has more impact on AI quality than any other piece of metadata.
+- **Composition-friendly defaults.** Components with sensible default props that work in 80% of cases produce better AI output, because the AI doesn't have to over-specify.
+- **Few props, deeply composable.** A component with 6 props that compose well outperforms a component with 27 props that try to cover every case. Same lesson as designing for humans, more visible with AI.
+
+## Cost-benefit math: DS investment payback when AI is in the loop
+
+The numbers I've seen at three different companies, broadly:
+
+| Investment | Cost | Value (pre-AI) | Value (with AI in loop) |
+|---|---|---|---|
+| Token system (primitive/semantic/component) | 4–6 weeks of 1 design engineer | High; foundation for everything | Very high; gating factor for AI output quality |
+| Component docs with use_when | 1 day per component, ~30 components | Modest; new-hire enablement | High; gating factor for AI composition correctness |
+| Pattern library (composed primitives) | 2–3 weeks of 1 design engineer | High; reduces designer & engineer rework | Very high; eliminates entire categories of AI mistakes |
+| MCP server over DS | 3–5 days of 1 engineer | None (wasn't relevant pre-AI) | Very high; unlocks 5–10× speedup on routine DS work |
+| Visual regression suite | 1 week setup + ongoing | Modest; catches drift | High; required when AI is contributing components |
+
+Total investment for a from-scratch AI-ready DS: roughly one design engineer for one quarter. Payback period at any team of meaningful size: under two months once AI tooling is in routine use.
+
+Compared to the alternative — every team builds their own Frankenstein UI assisted by AI that doesn't know your conventions — the math isn't close.
+
+## Risks of half-built systems amplifying chaos
+
+The most common mistake I see: a team starts adopting AI tooling _while_ the DS is mid-overhaul. The half-built system becomes the worst of both worlds:
+
+- Some components are tokenised; AI uses tokens for those, raw values for others.
+- Some components have docs; AI composes correctly with those, badly with others.
+- Some patterns are codified; AI finds them, then reinvents the ones that aren't.
+
+Output is wildly inconsistent within the same generation. Cleanup time exceeds the cost of writing the surface by hand. The team concludes "AI doesn't work for us." The diagnosis is that the DS isn't ready, but the conclusion is rarely articulated that way.
+
+> **Rule of thumb:** if your DS isn't ready, lean _into_ AI for one part of it (the migration itself — generating tokens, refactoring components onto tokens) and lean _away_ from it for product surfaces until the system is whole. Half-AI on a half-DS is chaos. Full-AI on a partial DS is full chaos.
+
+## Team-shape consequences
+
+When AI tooling actually works against your DS, three role boundaries shift:
+
+### The designer–engineer handoff thins
+
+A designer can prompt a working draft of a new flow without booking engineering time. The engineer comes in for the hard 30%, not the routine 60%. This isn't speculation — it's the observable workflow change once Make Kits or a DS-backed Cursor session is in place.
+
+### The DS team's leverage doubles (revisited)
+
+I keep coming back to this because it's the change with the largest organisational implications. The DS team used to be a cost centre that traded cost for consistency. With AI in the loop, it's a velocity centre. The org chart should reflect that.
+
+### "Design engineer" becomes the most valuable craft role
+
+Someone who can: shape DS internals, prompt AI tools fluently, review AI-generated code for craft and consistency, and ship the last-mile polish themselves. That role didn't exist as a job title at most companies five years ago. By the end of 2026 it's a recruiting priority, with comp to match.
+
+## A 90-day plan to get your DS AI-ready
+
+Concrete plan, weeks numbered. Assumes a team with an existing partial DS — the most common starting point. If you have nothing, add 30 days of foundation work at the front.
+
+### Days 1–14: Inventory and triage
+
+- Audit every existing component. Note: tokenised? documented? in active use? has variants?
+- Audit every variable. Note: primitive? semantic? component-level? naming convention conformant?
+- Identify the 8–15 patterns the product uses everywhere that aren't yet composed primitives.
+- Identify the top 10 sources of style drift in the existing codebase.
+- Pick the AI tool you'll target first (Make, Cursor, Claude Code). Same DS work helps all three; pick one to anchor the validation loop.
+
+### Days 15–30: Token system
+
+- Land the three-tier naming convention. Document it. Commit it.
+- Migrate all primitive values into Figma Variables (or wherever your source of truth lives).
+- Set up the export pipeline (Variables2Code / Tokens Studio + Style Dictionary).
+- Land the lint rule that fails on raw values in components.
+- Land the build step that emits CSS variables, Tailwind config, and JSON tokens.
+
+### Days 31–50: Component docs
+
+- For every public component, write `use_when` and `do_not_use_when`. One paragraph each. Aim for clarity, not cleverness.
+- Add an `Examples` section with two to three idiomatic snippets.
+- For complex components, add an `Accessibility` section with the a11y contract.
+- Start collecting these as MDX or JSON descriptors that can be consumed by AI tools.
+
+### Days 51–70: Pattern library
+
+- For every "we always do X" rule, ship a composed primitive that bakes it in.
+- `FormLayout`, `PageHeader`, `EmptyState`, `ConfirmDialog`, `MetricCard`, `MemberRow`, `BillingCard` — the names will differ; the shape won't.
+- Document each pattern's `use_when` the same way as components.
+- Migrate one or two product surfaces onto the new patterns to validate the abstractions.
+
+### Days 71–85: AI integration
+
+- Build a Make Kit (or equivalent for your chosen AI tool) from the inventory + docs.
+- Or, if you're going the MCP route: stand up the MCP server, expose `components_list`, `component_get`, `tokens_list`, `patterns_list`, `usage_search`. Add a `_describe` meta-tool.
+- Run 20 representative prompts. Catalog every drift from your product. Each drift is a missing or weak descriptor; fix at the descriptor layer.
+
+### Days 86–90: Governance and rollout
+
+- Land the AI-generation PR template.
+- Land the visual regression suite if you don't have one.
+- Train the team on the new prompt → review → integrate loop.
+- Pick one product surface for an end-to-end pilot. Ship it. Measure the time difference.
+
+End state: a DS that compounds with AI tooling instead of competing with it. The investment is real; the payback is durable.
+
+## The honest take, without hedging
+
+The "AI will replace designers / engineers" framing is the wrong frame. The right frame is:
+
+> _AI will compound whatever discipline your design system already has. If the system is strong, AI is a velocity multiplier. If the system is weak, AI is a chaos multiplier._
+
+Teams shipping fast on AI tooling in 2026 aren't using better prompts. They've spent the last two years building design systems that AI can compose from. Teams complaining that "AI doesn't generate usable UI for us" are usually telling the truth, and the diagnosis is rarely the AI.
+
+The investment that pays back highest right now isn't an AI tool. It's a design system worth pointing one at.
+
+---
+
+Building or evolving a DS for AI consumption right now? I'd love to swap notes — [drop me a line](/#contact).

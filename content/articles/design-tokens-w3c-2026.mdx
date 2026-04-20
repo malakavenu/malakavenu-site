@@ -1,0 +1,547 @@
+---
+title: "Design tokens with the W3C standard: what changes when the format becomes boring"
+description: "The token format finally stopped being a debate. Here's the architecture, the toolchain, and the rituals that make tokens actually ship to production."
+date: '2026-01-30'
+updated: '2026-01-30'
+category: 'Design Systems'
+tags: ['Design Tokens', 'W3C', 'Style Dictionary', 'Tokens Studio', 'Design Systems']
+author: 'Malaka Venugopal Reddy'
+---
+
+For most of the last decade, "what format are your design tokens?" was a five-minute conversation. SCSS variables. CSS custom properties. Some bespoke YAML one team invented. Style Dictionary's nested JSON. Each tool had its own dialect and you wrote a converter every time.
+
+In 2026, the W3C Design Tokens Community Group (DTCG) format is the answer. It's boring. It's exactly what design tokens needed.
+
+The interesting work has moved up the stack: architecture, governance, and the rituals that decide whether your tokens actually ship to production or quietly rot in a Figma file nobody opens.
+
+## What the W3C DTCG format actually gives you
+
+Strip away the spec talk and the W3C format does five concrete things:
+
+- **One JSON shape, with `$value` and `$type` everywhere.** Style Dictionary, Tokens Studio, Theo, Specify, Supernova, Penpot all read it. No more conversion scripts.
+- **First-class composite types.** Shadows, gradients, typography sets, transitions, borders — typed, not stringly-typed.
+- **References that survive transforms.** `{color.brand.500}` resolves consistently across every platform you build for.
+- **Groups and metadata.** `$description`, `$extensions`, `$deprecated` — first-class, standardised, lintable.
+- **No more vendor lock-in.** Switch from Tokens Studio to Specify without touching your downstream pipeline.
+
+A representative slice of a real DTCG file:
+
+```json
+{
+  "color": {
+    "brand": {
+      "500": {
+        "$value": "#5b6cff",
+        "$type": "color",
+        "$description": "Primary brand colour. Used for primary actions and brand surfaces."
+      }
+    },
+    "surface": {
+      "primary": {
+        "$value": "{color.brand.500}",
+        "$type": "color",
+        "$description": "Surface colour for primary CTAs."
+      }
+    }
+  },
+  "shadow": {
+    "card": {
+      "$type": "shadow",
+      "$value": [
+        {
+          "color": "{color.neutral.900}",
+          "offsetX": "0",
+          "offsetY": "1px",
+          "blur": "2px",
+          "spread": "0"
+        },
+        {
+          "color": "{color.neutral.900}",
+          "offsetX": "0",
+          "offsetY": "4px",
+          "blur": "12px",
+          "spread": "-2px"
+        }
+      ]
+    }
+  },
+  "typography": {
+    "heading": {
+      "lg": {
+        "$type": "typography",
+        "$value": {
+          "fontFamily": "{font.family.sans}",
+          "fontSize": "{font.size.6}",
+          "fontWeight": "{font.weight.bold}",
+          "lineHeight": "{font.lineHeight.tight}",
+          "letterSpacing": "-0.01em"
+        }
+      }
+    }
+  },
+  "motion": {
+    "duration": {
+      "fast": { "$value": "120ms", "$type": "duration" },
+      "base": { "$value": "200ms", "$type": "duration" }
+    },
+    "easing": {
+      "standard": {
+        "$value": [0.2, 0, 0, 1],
+        "$type": "cubicBezier"
+      }
+    }
+  }
+}
+```
+
+The thing that separates "tokens" from "constants" is the last bit — referencing the brand color from inside a composite shadow token. Update one value, every shadow updates everywhere it's referenced, on every platform you build for.
+
+> **Field note.** I have lost more hours than I want to admit to "everyone agree on a JSON shape" meetings. The DTCG spec ended that argument. Don't restart it. Adopt the spec verbatim.
+
+## The three-tier architecture that survives growth
+
+Across every design system I've helped run, the tokens that scale follow the same shape:
+
+| Tier | Example | Who edits | Who reads |
+| --- | --- | --- | --- |
+| **Primitive** | `color.blue.500`, `space.4`, `font.size.6` | Brand / design lead | Semantic tier only |
+| **Semantic** | `color.surface.primary`, `space.layout.gutter`, `font.heading.lg` | Design system team | Component tier + apps (sparingly) |
+| **Component** | `button.primary.background`, `card.padding.inline` | Component owner | The component itself |
+
+The single most important rule:
+
+> **Components never reference the primitive tier.** If your `Button` reads `color.blue.500` directly, dark mode is going to be a six-month project.
+
+### What lives in each tier
+
+**Primitives** are the raw material. Pure values, no semantics:
+
+```json
+{
+  "color": {
+    "neutral": {
+      "0":   { "$value": "#ffffff", "$type": "color" },
+      "50":  { "$value": "#f7f7f8", "$type": "color" },
+      "100": { "$value": "#eeeef0", "$type": "color" },
+      "900": { "$value": "#16181d", "$type": "color" },
+      "1000":{ "$value": "#000000", "$type": "color" }
+    }
+  },
+  "space": {
+    "0":  { "$value": "0",     "$type": "dimension" },
+    "1":  { "$value": "4px",   "$type": "dimension" },
+    "2":  { "$value": "8px",   "$type": "dimension" },
+    "3":  { "$value": "12px",  "$type": "dimension" },
+    "4":  { "$value": "16px",  "$type": "dimension" },
+    "6":  { "$value": "24px",  "$type": "dimension" },
+    "8":  { "$value": "32px",  "$type": "dimension" }
+  }
+}
+```
+
+**Semantic tokens** describe purpose. They're what designers reason in. They reference primitives:
+
+```json
+{
+  "color": {
+    "surface": {
+      "background": { "$value": "{color.neutral.0}", "$type": "color" },
+      "muted":      { "$value": "{color.neutral.50}", "$type": "color" },
+      "raised":     { "$value": "{color.neutral.0}", "$type": "color" }
+    },
+    "text": {
+      "primary":   { "$value": "{color.neutral.900}", "$type": "color" },
+      "secondary": { "$value": "{color.neutral.700}", "$type": "color" },
+      "inverse":   { "$value": "{color.neutral.0}", "$type": "color" }
+    }
+  },
+  "space": {
+    "layout": {
+      "gutter":  { "$value": "{space.6}", "$type": "dimension" },
+      "section": { "$value": "{space.8}", "$type": "dimension" }
+    }
+  }
+}
+```
+
+**Component tokens** are component-scoped, almost always referencing semantic tokens:
+
+```json
+{
+  "button": {
+    "primary": {
+      "background":      { "$value": "{color.action.primary}", "$type": "color" },
+      "backgroundHover": { "$value": "{color.action.primaryHover}", "$type": "color" },
+      "text":            { "$value": "{color.text.inverse}", "$type": "color" },
+      "paddingInline":   { "$value": "{space.4}", "$type": "dimension" },
+      "paddingBlock":    { "$value": "{space.2}", "$type": "dimension" },
+      "radius":          { "$value": "{radius.md}", "$type": "dimension" }
+    }
+  }
+}
+```
+
+It takes about a quarter to refactor an existing system into this shape. It pays back the first time you ship a new theme.
+
+## The toolchain that's stopped fighting
+
+In 2026, the path most teams converge on is:
+
+1. **Designers edit in Figma.** Variables and Tokens Studio, depending on team. Tokens Studio is the more mature pipeline; Figma Variables is closing the gap.
+2. **Tokens Studio (or Figma Make's variable export) pushes to Git** — a `tokens/` folder in your design-system repo via the GitHub plugin, branch-per-PR.
+3. **Style Dictionary 4** runs in CI, applies transforms, emits per-platform output: CSS custom properties, Tailwind config, Swift constants, Kotlin constants, JSON for native, TS types.
+4. **A consumer SDK** (your design-system package) ships the CSS + a typed TS export of every token.
+
+The whole pipeline is two CI jobs and a publish step. The first time you set it up takes a week. After that, designers ship token changes via PRs that engineers review like any other code.
+
+### Tokens Studio + Figma workflow, step by step
+
+Concretely, the flow:
+
+1. Designer opens Tokens Studio in Figma, creates `color.brand.500` on the appropriate set.
+2. They reference it from `color.action.primary` (semantic).
+3. They commit to a branch from inside Tokens Studio: `feat/brand-refresh`.
+4. CI runs Style Dictionary against that branch, builds the tokens package, deploys a Storybook preview.
+5. Engineering reviews the diff in GitHub — both the JSON and the rendered Storybook.
+6. On merge, the tokens package publishes to npm; consuming apps pick it up via Renovate.
+
+Two non-obvious tips:
+
+- **Pin Tokens Studio's plugin version per repo.** The output format is mostly stable but minor releases occasionally rename `$extensions` keys.
+- **Use Figma Variable Modes for theming, not separate token files.** One file, multiple modes (light/dark/brand-A/brand-B). The Style Dictionary side handles each mode as a separate output.
+
+### Style Dictionary 4 config that's worked across teams
+
+The minimal config that gets you somewhere good:
+
+```ts
+// style-dictionary.config.ts
+import StyleDictionary from 'style-dictionary';
+import { register as registerW3C } from '@tokens-studio/sd-transforms';
+
+registerW3C(StyleDictionary);
+
+export default {
+  source: ['tokens/**/*.json'],
+  preprocessors: ['tokens-studio'],
+  platforms: {
+    css: {
+      transformGroup: 'tokens-studio',
+      buildPath: 'dist/css/',
+      files: [
+        {
+          destination: 'tokens.css',
+          format: 'css/variables',
+          options: { selector: ':root' },
+        },
+        {
+          destination: 'tokens-dark.css',
+          format: 'css/variables',
+          filter: (token) => token.attributes.theme === 'dark',
+          options: { selector: '[data-theme="dark"]' },
+        },
+      ],
+    },
+    tailwind: {
+      transformGroup: 'tokens-studio',
+      buildPath: 'dist/tailwind/',
+      files: [
+        {
+          destination: 'tokens.cjs',
+          format: 'javascript/module',
+        },
+      ],
+    },
+    ts: {
+      transformGroup: 'tokens-studio',
+      buildPath: 'dist/ts/',
+      files: [
+        {
+          destination: 'tokens.ts',
+          format: 'typescript/es6-declarations',
+        },
+        {
+          destination: 'tokens.json',
+          format: 'json/nested',
+        },
+      ],
+    },
+    swift: {
+      transformGroup: 'ios-swift',
+      buildPath: 'dist/swift/',
+      files: [
+        {
+          destination: 'Tokens.swift',
+          format: 'ios-swift/class.swift',
+          className: 'Tokens',
+        },
+      ],
+    },
+    kotlin: {
+      transformGroup: 'android',
+      buildPath: 'dist/android/',
+      files: [
+        {
+          destination: 'Tokens.kt',
+          format: 'compose/object',
+          className: 'Tokens',
+          packageName: 'com.example.tokens',
+        },
+      ],
+    },
+  },
+};
+```
+
+The output is one set of inputs producing CSS, Tailwind, TS, JSON, Swift, Kotlin. Every platform gets the same brand colour the same day.
+
+### Multi-platform output: what each consumer actually sees
+
+CSS custom properties for the web app:
+
+```css
+:root {
+  --color-brand-500: #5b6cff;
+  --color-action-primary: var(--color-brand-500);
+  --button-primary-background: var(--color-action-primary);
+  --space-4: 16px;
+  --radius-md: 8px;
+}
+```
+
+Tailwind config consuming the same source:
+
+```js
+// tailwind.config.js
+const tokens = require('./node_modules/@acme/tokens/dist/tailwind/tokens.cjs');
+
+module.exports = {
+  theme: {
+    colors: tokens.color,
+    spacing: tokens.space,
+    borderRadius: tokens.radius,
+    boxShadow: tokens.shadow,
+  },
+};
+```
+
+Swift constants for iOS:
+
+```swift
+public class Tokens {
+    public static let colorBrand500 = UIColor(red: 0.357, green: 0.424, blue: 1.0, alpha: 1.0)
+    public static let space4: CGFloat = 16
+    public static let radiusMd: CGFloat = 8
+}
+```
+
+Same source. Same source-of-truth PR. Same brand refresh, simultaneously across every channel.
+
+## A CI pipeline that doesn't break designers
+
+The pipeline I run:
+
+```
+Figma (Tokens Studio)
+  ↓ push branch
+GitHub PR
+  ↓ on push
+CI Step 1: validate
+  - JSON schema validation against DTCG
+  - Custom lint (no orphan tokens, no missing $type, no untracked deprecations)
+  - Diff report posted as PR comment
+CI Step 2: build
+  - Style Dictionary 4 → CSS, Tailwind, TS, Swift, Kotlin
+  - Snapshot test against last release (visual + value diff)
+CI Step 3: preview
+  - Deploy Storybook with new tokens applied
+  - Chromatic visual regression run
+  - Comment back on PR with preview link + diff
+CI Step 4: publish (on merge to main)
+  - Bump @acme/tokens version (semver decided by lint rules below)
+  - npm publish
+  - Open PRs in consuming repos via Renovate
+```
+
+The validation step is what keeps designers in the loop. A token PR that breaks the build gets a clear "you renamed `color.brand.500` — that's a breaking change" comment, not a red X with no context.
+
+## Governance: the part that decides whether tokens survive
+
+Tokens fail in human ways more than technical ones. The rituals that prevent that:
+
+### Token PRs are reviewed by both design and engineering
+
+Two approvals. Not optional. A token change without a designer approval risks visual drift; without an engineer approval, it risks breaking the build. CODEOWNERS makes it enforceable.
+
+### Names are immutable; values are not
+
+Renaming a token is an API breaking change. Treat it that way:
+
+- **Adding a token:** patch.
+- **Changing a value:** minor (visual change, not API change).
+- **Renaming a token:** major. Add an alias from the old name with `$deprecated: true` for one major version.
+- **Removing a token:** major.
+
+The deprecated alias pattern in DTCG:
+
+```json
+{
+  "color": {
+    "subtle": {
+      "$value": "{color.text.muted}",
+      "$type": "color",
+      "$deprecated": true,
+      "$description": "Deprecated. Use color.text.muted instead. Removed in v3.0."
+    }
+  }
+}
+```
+
+A lint rule warns on usage of any `$deprecated: true` token in component code. After a major version, the token disappears.
+
+### Every component PR that touches styles must reference tokens
+
+Lint rule, CI gate, whatever it takes. The rule is "no raw color or spacing values in component CSS." This single rule is worth more than any architecture diagram.
+
+A `stylelint` rule that catches the most common violations:
+
+```js
+// stylelint.config.cjs
+module.exports = {
+  plugins: ['stylelint-declaration-strict-value'],
+  rules: {
+    'scale-unlimited/declaration-strict-value': [
+      ['/color/', '/^padding/', '/^margin/', 'border-radius', 'box-shadow'],
+      {
+        ignoreValues: ['transparent', 'currentColor', 'inherit', 'initial', 'none', '0', '/^var\\(--/'],
+        message: 'Use a design token (CSS custom property) instead of a raw value.',
+      },
+    ],
+  },
+};
+```
+
+For TypeScript / styled-components / vanilla-extract codebases, the same shape works as an ESLint rule.
+
+### One semantic token per use case
+
+If you have `color.text.muted` and `color.text.subtle` and nobody can articulate the difference, you have one token wearing two costumes. Merge them. The system's value is in its constraints, not its expressiveness.
+
+## Theme architecture: light, dark, brand, density
+
+Theming in DTCG-land is a `$value` swap, not a fork of the file. The pattern:
+
+```json
+{
+  "color": {
+    "surface": {
+      "background": {
+        "$type": "color",
+        "$value": "{color.neutral.0}",
+        "$extensions": {
+          "modes": {
+            "dark": "{color.neutral.1000}",
+            "high-contrast": "#ffffff"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Style Dictionary emits one CSS file per mode, gated on a `data-theme` attribute. App code does:
+
+```html
+<html data-theme="dark">
+```
+
+…and every component repaints in dark mode. No JS theme provider. No duplicated tokens. No manual override sets.
+
+For multi-brand:
+
+```json
+{
+  "color": {
+    "brand": {
+      "500": {
+        "$value": "#5b6cff",
+        "$extensions": {
+          "modes": {
+            "brand-blue": "#5b6cff",
+            "brand-green": "#1f9d55",
+            "brand-red":   "#d11854"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Same mechanism. `data-brand="brand-green"` switches every component that references the brand colour.
+
+## Storybook 9 token panel + AI tooling
+
+Storybook 9 ships a first-class design-token panel — point it at your DTCG file and it auto-generates browsable docs grouped by `$type`. Every token has a name, value, description, references, and a copy-as-CSS-var button.
+
+Two tips:
+
+- **Auto-generate the panel from your published `@acme/tokens` package**, not from a hand-rolled MDX file. Every release stays in sync.
+- **Add an AI-context export** — a single `tokens.md` file with the human-readable description of every semantic token, published with the package. Cursor and Claude Code consume this when generating components, and the output stays on-brand.
+
+The AI angle is underrated. A strong token system is what makes "generate a settings page that matches our product" produce something usable instead of generic. The model has a vocabulary of named, described, typed primitives. Without that vocabulary, AI-generated UI lands in a stylistic uncanny valley.
+
+## Anti-patterns I see in audits
+
+A short field guide to traps:
+
+- **Don't ship 12 tiers.** Three is correct. Four is the limit (primitive → semantic → pattern → component is occasionally justified). Anything beyond is a hobby project.
+- **Don't theme everything.** Theme `color`, `radius`, `shadow`, and a small set of semantic surfaces. Themed typography, themed spacing, themed motion — usually a sign your themes are actually different products.
+- **Don't build a custom build pipeline.** Style Dictionary 4 is the answer. Whatever you'd write yourself is a worse version of it.
+- **Don't expose primitives in your public API.** Document semantic and component tokens for consumers; primitives are an implementation detail.
+- **Don't put pixels in semantic tokens directly.** `color.surface.primary: #ffffff` is broken. It should reference `{color.neutral.0}`. The reference chain is what makes the system editable.
+- **Don't create a token per component instance.** `homepage.hero.button.primary.background` is not a token, it's a hard-coded style with extra steps.
+- **Don't rename to "improve clarity."** You're punishing every consumer of the old name for your own preference. Add an alias instead.
+
+## Migration: introducing tokens to a 200+ component existing app
+
+The sequence that's worked across three migrations:
+
+1. **Audit first.** Run `stylelint` with strict-value disabled and dump every distinct color/space/radius value used in component code. The number is usually horrifying — a typical mid-size app has 200+ unique colors, most of which differ by one pixel of luminance.
+2. **Build the primitive tier from the audit.** Cluster the 200 colors into ~30 primitives. Designer-led.
+3. **Build the semantic tier from the components.** What does `Card`'s background actually mean? What does `Button`'s primary actually represent?
+4. **Ship tokens as additive CSS first.** No component changes yet. The CSS file exists, the consumers don't reference it.
+5. **Migrate one component at a time.** Behind a flag if the design risk is high. PR-by-PR. Don't try to do it in one big "design refresh" sprint.
+6. **Lint the legacy out.** Once 80% of components are migrated, flip `stylelint`'s strict-value rule to `error`. The remaining 20% become a backlog.
+
+A reasonable timeline for a 200-component app is one quarter to ship tokens as an option, two quarters to migrate the surface area, three quarters to lint the rest into compliance. Resist any plan shorter than that. Resist any plan longer than that.
+
+## ROI: the math that closes budget
+
+A typical theme-switch project pre-tokens vs post-tokens:
+
+| Activity | Pre-tokens | Post-tokens |
+| --- | --- | --- |
+| Brand refresh (color + radius + shadow) | 6–8 weeks of design-eng work | 1 day (token PR + visual review) |
+| Light-only → light/dark | One-quarter project, > 50 components | 2 weeks (token modes + a few component fixes) |
+| Multi-brand support | Often considered infeasible | A `data-brand` attribute and a token-mode addition |
+| New platform (iOS, Android) | 4–6 weeks of redoing visual work | The token build pipeline emits the constants automatically |
+| AI-generated UI on-brand | Doesn't happen | Default behaviour |
+
+Two data points worth committing to memory:
+
+- ~**74% of mature design systems** in 2026 surveys ship tokens as a primary deliverable. A decade ago this was niche; today it's table stakes.
+- The single highest ROI activity in a design-system overhaul is moving to W3C tokens with a three-tier architecture. Higher than rewriting components, higher than swapping CSS-in-JS libraries, higher than a Storybook upgrade.
+
+## The quiet shift
+
+The interesting change in 2026 isn't the W3C standard itself. It's that token systems stopped being a _design_ project and started being a _platform_ project. The tokens are the contract between designers, engineers, brand, and AI tooling. Storybook 9's first-class token panel and Figma's variable consumption both treat tokens as the primary handoff surface.
+
+If your tokens are well-shaped, AI tools generate UI that looks like your product. If they aren't, AI tools generate UI that looks like nothing in particular. The W3C format isn't the goal — it's the on-ramp to a system that pays back across every channel you ship to.
+
+The teams winning here have one thing in common: they treat the design-token repo with the same rigour as any other production package. Versioned, reviewed, linted, tested, deployed. Once that mindset clicks, the rest of the system shape follows.
+
+---
+
+Building or evolving a token system right now? I've done a few — [drop me a line](/#contact).

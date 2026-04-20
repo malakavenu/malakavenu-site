@@ -1,0 +1,321 @@
+---
+title: "Staff engineers need to be hands-on again — and AI is the reason"
+description: "Three years ago, leverage meant delegating. In 2026, the most leveraged staff engineers are the ones writing more code than they have in years. Here's why the math changed."
+date: '2026-04-04'
+updated: '2026-04-04'
+category: 'Career'
+tags: ['Staff Engineer', 'Career', 'AI Tooling', 'Leadership', 'Engineering Culture']
+author: 'Malaka Venugopal Reddy'
+---
+
+The conventional staff engineering wisdom from 2020 was clear: your job is leverage, leverage means delegation, and delegation means you write less code over time. Some of the best writing on the role argued that the IC who insists on shipping themselves at staff+ levels is failing at the job.
+
+Most of that wisdom was right. None of it accounts for what AI tooling did to the cost of writing code.
+
+In 2026, the highest-leverage staff engineers I work with are writing _more_ code than they did three years ago, not less. The math changed. The role hasn't fully caught up yet. This is the recalibration that's worked for me and the people I trade notes with.
+
+## The old leverage equation
+
+The 2020-era equation looked like:
+
+> _Time spent shipping_ × _Quality of your output_  <  _Time spent unblocking ten engineers_ × _Quality of their improved output_
+
+Almost always, that was true. A staff engineer who spent a quarter shipping a single feature would have produced more value by mentoring four mid-levels into a level of independence that compounded for years. The math worked because:
+
+- Writing code was slow. A staff engineer's 3× speed advantage over a mid-level was bounded by the typing — they were still in the same "code per week" order of magnitude.
+- The cost of context-loading a teammate was high, but the payoff lasted years.
+- Reviewing was cheap; writing was expensive. So leverage was mostly review-and-redirect.
+
+The whole "stop being a hero" framing flowed from that math. It was correct.
+
+## The new equation
+
+The cost side collapsed. Specifically:
+
+- **A skilled engineer with Cursor / Claude Code / Codex is shipping 2–3× the volume they shipped in 2023.** That is not a marketing number; it's a measured number across the teams I work with.
+- **The shape of that work shifted.** Less typing. More reviewing, prompting, judging, integrating, debugging. Exactly the skills senior+ engineers already have.
+- **The slope of the speedup is steeper for senior+ engineers than for juniors**, because the bottleneck moved from "can you write the code" to "do you know what code to write."
+
+The new math:
+
+> _Time spent shipping (with AI)_ × _Your judgement_  ~  _Time spent unblocking ten mid-levels (with AI)_ × _Their improved judgement_
+
+The two sides got closer. In some workloads, the first side is now bigger. The whole hands-on-vs-leverage debate needs a re-read.
+
+### A worked example
+
+Concrete numbers from a recent project:
+
+| Activity | 2023 staff engineer | 2026 staff engineer with AI |
+| --- | --- | --- |
+| Spec a new internal CLI | 2 days | 4 hours |
+| Implement v1 | 8 days | 2 days |
+| Tests + docs | 3 days | 1 day |
+| Review + ship | 2 days | 1 day |
+| **Total** | **3 weeks** | **~4 days** |
+
+The same engineer, same artefact, same quality bar. The 4-day version exists because writing code is no longer the bottleneck — judgement is.
+
+> **Field note.** The single biggest mistake I see staff engineers make in 2026 is calibrating their effort budget to the 2023 cost of writing code. "I can't take that on, it's two weeks of work" is a 2023 sentence. Re-cost everything.
+
+## When hands-on staff work wins
+
+Across three orgs and a dozen audited projects, hands-on staff work wins in four scenarios:
+
+### 1. Judgement-heavy, tooling-fluent work
+
+A complex refactor across 40 files. Untangling a perf regression that crosses framework boundaries. Designing an API that ten teams will consume. These are tasks where _your_ judgement is the bottleneck and AI tooling makes _you_ 3× faster. Delegating to a mid-level loses both — slower _and_ worse output.
+
+### 2. Tribal-knowledge work
+
+You're the only person who remembers why the auth layer was structured that way. Pairing the AI tool with your context produces a clean fix in a day. Handing it to a junior produces six weeks of investigation followed by a wrong fix.
+
+### 3. Force-multiplier artefacts
+
+A new internal CLI. A shared component. A debugging tool. A `.cursorrules` file that encodes the team's idioms. Building it yourself in two days, with AI assistance, produces an artefact that compounds across every engineer on the team for years. Delegating it produces a worse artefact, slower.
+
+### 4. Speed-beats-process moments
+
+Some windows close. The customer is escalating today. The launch ships Friday. The CEO has a demo Tuesday. Hands-on shipping by the most experienced person in the room is just the right answer; trying to be politically pure about delegation kills the deal.
+
+## When you should still delegate (more, not less)
+
+The flip side is true and worth being honest about. Delegate when:
+
+- The work is the right scope for someone to grow into. Even if you'd be 3× faster, the growth investment compounds over years.
+- The work touches a system you don't have deep context on, and someone else does. Don't reinvent context.
+- The work is repetitive enough that turning it into a runbook for the team is more valuable than shipping it once yourself.
+- You're already at capacity. Hero work has limits; sustained hero work is a recipe for the wrong kind of leverage.
+
+The 2020 advice wasn't wrong, just incomplete. Delegation is still the right answer for most of your time. It's just no longer the right answer for _all_ of your time.
+
+| Work type | Who ships | Why |
+| --- | --- | --- |
+| Cross-cutting refactor in your domain | You | Judgement bottleneck |
+| Greenfield service in a new domain | Senior + you reviewing | Context loading is the point |
+| Repetitive component variants | Mid-level + AI | Growth + speed parity |
+| Production incident in a system you built | You | Tribal knowledge |
+| New internal tooling for the team | You | Force multiplier |
+| Quarterly feature roadmap items | Mid-level / senior + you architecting | Capacity + growth |
+
+## The protected-time pattern
+
+Every staff engineer I respect in 2026 has carved out something similar to this:
+
+- **Two days a week, calendared, protected, hands-on.** Not "if there's time." Calendared. The work that fills it tends to be the work that produces the most visible team-wide impact.
+- **Two days a week of leverage work.** Mentoring, reviewing, design docs, cross-team alignment, hiring.
+- **One day for the unpredictable.** Incidents, escalations, urgent reviews, recruiting calls.
+
+The split isn't sacred. The protection is. Every hour you don't carve out _will_ be eaten by the urgent, and the urgent is rarely the most leveraged.
+
+> **Rule of thumb.** If you haven't shipped a meaningful artefact yourself in the last six weeks, your calendar is broken. Not your priorities — your calendar. Fix the calendar.
+
+## AI-PR review as a first-class skill
+
+A 600-line PR generated in two hours with Claude Code requires a different review discipline than a hand-written 600-line PR over a week. Different failure modes. Different speed. Different rigour.
+
+The review checklist I now run on every AI-assisted PR (mine or anyone else's):
+
+- **Does the test suite cover the new code?** AI is _excellent_ at writing tests that pass and miss the actual edge case. Read the tests like prose, not as a checkmark.
+- **Are there silent dependency additions?** New `package.json` entries are easy to overlook. Verify each is needed and licence-compatible.
+- **Does the implementation match the apparent intent?** Sometimes the model solves a slightly different problem than the prompt asked for, in a plausible way. Read the diff against the spec, not the diff against itself.
+- **Are there security regressions?** New endpoints without auth, missing input validation, raw SQL where the codebase uses an ORM. AI tools confidently violate codebase conventions.
+- **Is there hallucinated API usage?** The model is confident about API shapes that don't exist. CI catches most; not all.
+- **Are there overly-clever abstractions?** Models love to factor things out one level too far. Inline aggressively in review.
+- **Does it match the codebase's style and idioms?** A `.cursorrules`/`AGENTS.md` file helps, but doesn't eliminate the need to check.
+
+Reviewing PRs is now genuinely a skill that distinguishes staff+ from senior. Worth investing in the practice the same way you'd invest in any other craft.
+
+## Shared `.cursorrules` / skill-pack as a leverage artefact
+
+One of the highest-leverage things a staff engineer can ship in 2026 is a shared agent configuration for the team. The shape:
+
+- **`AGENTS.md` in the repo root.** Codebase conventions, file layout, library choices, how-we-test, how-we-deploy. The model reads it on every interaction.
+- **Skill files for repeatable workflows.** A `code-reviewer` skill that runs the team's review checklist. A `bugfix` skill that follows the team's debugging process. A `commit` skill that follows the team's git conventions.
+- **Eval suite for the agent setup.** A folder of "given this prompt, the model should produce this kind of output" tests, run in CI, fail-the-build on regression.
+
+This is the modern equivalent of writing a great internal style guide — except every engineer's AI gets faster the day you ship it. The amplification is real and immediate.
+
+## Tool fluency as a hireable signal
+
+"Can use Cursor / Claude Code / Codex well" is now part of how I evaluate senior+ candidates. It's not a vibe thing; it's measurably correlated with shipped output at the level we hire for.
+
+What I look for in a take-home or pair-programming round:
+
+- **Do they reach for the AI tool early or late?** Late is fine; never is a yellow flag at senior+, a red flag at staff+.
+- **Do they prompt with context or vibes?** "Refactor this to be cleaner" is a junior prompt. "Refactor this to extract the validation into a pure function and keep the IO in the handler — match the pattern in `users/handlers.ts`" is a staff prompt.
+- **Do they read the diff critically?** The candidate who takes the model's first answer is the same candidate who'd merge a junior's first PR.
+- **Do they know when to turn it off?** Some work is faster without AI assistance. Knowing which is which is a skill.
+- **Do they have evals or feedback loops set up?** The candidates who are best with AI tools have reflexive instincts for verifying output.
+
+In a 60-minute round, you can tell. In a take-home you can definitely tell. Build the signal into your hiring process.
+
+## Writing more, not less
+
+Internal docs, runbooks, design notes, post-mortems, RFCs. AI makes the writing faster; the act of writing still does the thinking. The thinking is the leverage.
+
+Things I write more of now than in 2023:
+
+- **Design docs.** AI-assisted, but the structure is mine. I now do design docs for things I would have just built before, because the cost of writing the doc is half what it was.
+- **Runbooks.** Every system I own has a runbook the on-call rotation can follow. AI writes the first draft from the code; I edit for accuracy.
+- **Post-mortems.** Faster to draft. Easier to extract patterns from across multiple incidents.
+- **Internal blog posts.** Sharing a pattern with the wider org. The kind of writing that compounds tribal knowledge into team knowledge.
+
+The output volume of writing should track the output volume of code. If you're shipping 3× the code, you should be shipping ~2× the writing.
+
+## Quality Wednesdays and rituals that scale craft
+
+Linear's Quality Wednesdays — protected time the whole team uses to ship craft work, not feature work — is the canonical example of a 2026-shaped ritual. Worth stealing. Variations I've seen work:
+
+- **One day a week, no meetings, no feature work.** The team chooses craft items off a shared backlog. Bug fixes, performance work, refactor, documentation, tooling.
+- **A weekly demo where craft work gets shown alongside features.** Treats craft as visible work, not invisible overhead.
+- **An explicit budget — say 20% of cycle time — that craft work counts against.** Without this, the most senior engineers pick up all the craft work and nobody else gets the practice.
+
+The pattern only works if leadership defends it from the urgent. Which means a staff engineer's job, in part, is to defend it.
+
+## Comp benchmarks for staff+ in 2026
+
+The market shifted. Quick reference for total comp at staff+ in the US (London/EU is roughly 60% of these):
+
+| Level | Big tech (FAANG-ish) | High-growth startup |  Established SaaS |
+| --- | --- | --- | --- |
+| Senior (L5/E5) | $400k–$550k | $300k–$450k | $250k–$350k |
+| Staff (L6/E6) | $600k–$900k | $500k–$700k | $350k–$500k |
+| Senior staff / Principal (L7) | $900k–$1.4M | $700k–$1.1M | $450k–$700k |
+| Distinguished (L8) | $1.4M+ | $1M+ | varies wildly |
+
+The numbers reflect a real shift: AI-fluent staff+ engineers are demonstrably more valuable than they were three years ago, and the comp markets caught up unevenly. If your comp band hasn't moved since 2023, you're underpaid relative to the median for your level. Use the data.
+
+The premium for AI fluency at staff+ is roughly 15–25% over the band median, in my recent benchmarking. It's not a separate role; it's a multiplier on the existing role.
+
+## JD shaping for staff+ in 2026
+
+When I help write a staff JD now, it includes:
+
+- **AI tool fluency as a required skill, not a nice-to-have.** "Productive with Cursor / Claude Code / Codex on production codebases."
+- **An emphasis on judgement-heavy artefacts shipped recently.** "Examples of significant code you have personally shipped in the last 6 months."
+- **A removal of the old "doesn't write code anymore" framing.** Staff engineers in 2026 still write code. The JD should say so.
+- **Explicit signals around evals, observability, and AI-tooling craft.** These are the new "you should know your way around a debugger" line items.
+
+Things I now leave out:
+
+- "Mentors junior engineers" as a primary duty. Still true; no longer a differentiator at staff+.
+- "Strong written communication" as if it's a unique trait. Assume it.
+- Long lists of frameworks. Tool fluency matters more than tool inventory.
+
+## Interview signal for staff candidates
+
+The bars I now look for, in priority order:
+
+1. **System judgement** — can they tell me which trade-offs they've actually made and what they'd do differently? Concrete, not abstract.
+2. **Hands-on recent shipping** — what did they personally ship in the last quarter? AI-assisted is fine; hand-wavy is not.
+3. **AI tool fluency in real time** — let them use the tool in the interview. Watch how they prompt, verify, and iterate.
+4. **Code review depth** — give them a 200-line PR with subtle issues. Watch what they catch.
+5. **Cross-team influence** — examples of changing how multiple teams work, not just their own.
+6. **Mentoring evidence** — engineers they've leveled up. Names, not vague claims.
+
+The shape that disqualifies fastest in 2026 is the staff candidate who hasn't touched code in two years and can't engage with AI tooling. That used to be a defensible posture. It isn't anymore.
+
+## Career ladders: rewrites that match the new shape
+
+If your engineering ladder still says "staff engineers do not write production code," it's wrong for 2026. The rewrites I've helped land:
+
+| Level | Old framing | 2026 framing |
+| --- | --- | --- |
+| Senior | Ships features end-to-end | Ships features end-to-end, AI-fluent |
+| Staff | Owns systems, multiplies team via mentoring & docs | Owns systems, multiplies team via mentoring, docs, _and_ shipped force-multiplier artefacts |
+| Senior staff / Principal | Sets technical direction across teams | Sets technical direction _and_ ships exemplar work that demonstrates it |
+| Distinguished | Org-wide influence, rarely codes | Org-wide influence, codes selectively on highest-leverage artefacts |
+
+The headline shift is at staff and senior staff: the rubric now rewards _hands-on artefact shipping_ as evidence of leverage, not as evidence of failing-up.
+
+## What to drop from your old playbook
+
+A short list, opinionated:
+
+- **Stop apologising for shipping code.** It's not LARPing as IC; it's the highest-leverage move on some quarters.
+- **Stop reviewing every PR.** AI-assisted PRs are too high-volume for that. Review architecturally significant PRs and sample the rest.
+- **Stop hand-writing meeting agendas, weekly updates, status emails.** AI drafts; you edit. Reclaim the hour.
+- **Stop refusing to use AI tools "because of the team."** The team is watching. Your usage models theirs.
+- **Stop scheduling 1:1s as your primary leverage tool.** Async written feedback on PRs and design docs is higher bandwidth and more permanent.
+- **Stop measuring leverage by team headcount.** A team of four staff+ engineers shipping with AI assistance often outpaces a team of twelve.
+
+## Anti-patterns I keep seeing
+
+A field guide to staff+ failure modes in 2026:
+
+- **LARPing as IC.** Calling yourself hands-on while only writing tooling for your own use. Real hands-on means user-facing or team-facing artefacts.
+- **Rejecting AI tools on principle.** "I want to write the code myself." That's a hobby, not a job. Your team is shipping at 3× the speed without you.
+- **Vibes-based code review on AI PRs.** Skimming a 600-line PR and approving because it "looks right" is malpractice now.
+- **Refusing to update the comp expectation.** You are paid for output. Output went up. So should your comp.
+- **Hiring for 2023 staff signal.** "Mentored four engineers" is a senior sentence in 2026.
+- **Ignoring the force-multiplier artefacts.** A `.cursorrules` file you didn't write is leverage you didn't capture.
+
+## The org-shape consequence
+
+If hands-on staff work is back, the team shape that follows is:
+
+- **Smaller teams, denser experience.** A team of four staff+ engineers shipping with AI assistance often outpaces a team of twelve mid-levels. Not always; often.
+- **More builder-leaders, fewer pure managers.** The "manager who never codes" model is fragile in 2026; the team can't get the mentoring it needs from someone who isn't fluent in the modern toolchain.
+- **The manager-engineer split shifts.** EM-IC pairs become the dominant unit. The IC is hands-on; the EM is hands-off but tool-fluent enough to give meaningful feedback.
+- **Quality investment as a ritual, not a side project.** Quality Wednesdays. Refactor weeks. Bug bashes. Protected time the whole team uses.
+- **Junior pipeline matters more, not less.** AI-fluent juniors compound faster than 2023 juniors did. The investment payback is shorter; the leverage payoff bigger.
+
+This isn't dystopian "AI replaces engineers." It's the opposite — engineering becomes more valuable per-person, and orgs that recognise that compound faster than the ones still budgeting for the old shape.
+
+## Mentoring AI-fluent juniors
+
+The mentoring shape changed too. Things I now focus on with juniors:
+
+- **Prompting taste.** Reviewing not just their code but their prompts. The first prompt is the spec; the second prompt is the iteration.
+- **Verification reflex.** Did they actually read the code the model wrote? Did they run it? Did they write a test?
+- **When to turn the tool off.** Some debugging is faster without AI in the loop. Some design is too. Knowing which is a skill.
+- **Reading the codebase before prompting.** AI is great at writing code; juniors who skip the "read the existing patterns" step ship inconsistent code at high speed.
+- **Architectural taste.** The thing AI doesn't help with. Worth investing the most mentoring time here.
+
+The mentoring time per junior dropped because so much of the rote stuff is automated; the value of the mentoring time went up because the architectural and judgement bits are even more important.
+
+## A one-quarter recalibration plan for staff engineers
+
+If you're a staff+ engineer reading this and recognising you might be in the wrong shape for 2026, here's a 13-week plan that's worked for several people I know:
+
+**Weeks 1–2: Audit.**
+- List everything you shipped in the last 6 months. Group by leverage type (hands-on, mentoring, design, alignment).
+- Note your AI tooling usage honestly. Be brutal.
+- Identify three force-multiplier artefacts you've been "meaning to build."
+
+**Weeks 3–6: Build one artefact.**
+- Pick the highest-leverage one. Internal CLI, shared component, debugging tool, `.cursorrules` file, eval suite, runbook system.
+- Ship it. With AI assistance. Aim for 2 weeks of effort, not 8.
+- Demo it to the team. Get usage.
+
+**Weeks 7–9: Recalibrate the calendar.**
+- Block two days a week for hands-on work.
+- Move 1:1s to async-by-default with optional sync escalation.
+- Push status updates / weekly emails to AI-drafted, you-edited.
+
+**Weeks 10–12: Build a repeatable practice.**
+- Run a Quality Wednesday for one quarter. Defend it.
+- Ship a second force-multiplier artefact. Smaller this time. Pattern, not heroics.
+- Write a public-facing post (internal blog, conference talk, external article) about the work.
+
+**Week 13: Re-audit.**
+- Compare what you shipped this quarter to the last. The volume should be visibly higher.
+- Re-baseline your comp expectation against current market data.
+- Talk to your manager about the level rubric — does it still describe what staff+ work looks like?
+
+If at the end of the quarter you can't see a difference, the issue isn't AI tooling; it's calendar discipline. Fix that first.
+
+## The honest summary
+
+The 2020-era staff playbook said: write less code, build more leverage through people. In 2026, the playbook is: write _the right_ code, more of it than you have in years, with AI assistance, while still building leverage through people. Both halves matter.
+
+If you're a staff+ engineer who hasn't shipped a meaningful artefact yourself in the last quarter, the honest question to ask isn't "am I being a hero?" It's "am I missing the most leveraged work I could be doing right now?"
+
+The role isn't dying. It's getting more valuable. The engineers who recognise that — who recalibrate their calendars, their rubrics, their hiring, their comp expectations, their PR review discipline — are the ones who'll define what staff+ engineering looks like for the rest of the decade.
+
+The rest will spend the decade explaining why their shipping volume hasn't moved.
+
+---
+
+Reshaping a staff engineering practice in your org? I'd love to compare notes — [drop me a line](/#contact).

@@ -1,0 +1,749 @@
+---
+title: "Generative UI with the Vercel AI SDK: streaming components, not strings"
+description: "Streaming text is the easy part. Streaming typed Angular components — recoverable, observable, eval-gated — is the part that makes generative UI feel native in a real Angular app."
+date: '2026-03-15'
+updated: '2026-03-15'
+category: 'Generative UI'
+tags: ['Vercel AI SDK', 'Angular', 'SSR', 'Streaming', 'Generative UI']
+author: 'Malaka Venugopal Reddy'
+---
+
+The phrase "Generative UI" gets thrown around a lot in 2026, usually meaning "an LLM rendered some HTML." The interesting version of generative UI isn't text-to-HTML. It's a model picking _which component to render_, _with which props_, from a typed library — streamed into the page as they're decided. The Vercel AI SDK's framework-neutral core is the cleanest path I've found to building it, and the Angular adaptation is a thin service on top of it.
+
+Here's what's actually worked across the surfaces I've shipped this year.
+
+## The mental model: components are tools
+
+In the SDK's `streamText` flow with tool calls, every renderable component is registered as a tool. The model picks tools the same way it picks any other tool — based on the description, the schema, and the running context. The difference is the tool's "result" is a typed payload that the Angular client maps to a concrete component.
+
+```ts
+// app/api/chat/route.ts — a framework-neutral Node endpoint (works in Nitro, Express, etc.)
+import { streamText, tool } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { z } from 'zod';
+
+export async function chatHandler(messages: CoreMessage[]) {
+  return streamText({
+    model: anthropic('claude-sonnet-4'),
+    messages,
+    tools: {
+      showInvoice: tool({
+        description:
+          'Render an invoice card. Use when the user asks to view, share, or pay an invoice. Do NOT use to list multiple invoices — use listInvoices.',
+        parameters: z.object({ invoiceId: z.string().regex(/^inv_[a-z0-9]+$/) }),
+        execute: async ({ invoiceId }) => {
+          const invoice = await db.invoice.find(invoiceId);
+          if (!invoice) {
+            return { component: 'ErrorCard', props: { message: 'Invoice not found', id: invoiceId } } as const;
+          }
+          return { component: 'InvoiceCard', props: { invoice } } as const;
+        },
+      }),
+    },
+  });
+}
+```
+
+The client maps `{ component: 'InvoiceCard', props }` to a real Angular component via `NgComponentOutlet`:
+
+```ts
+@Component({
+  selector: 'app-message',
+  standalone: true,
+  imports: [NgComponentOutlet, Markdown, InvoiceCard, ErrorCard],
+  template: `
+    @switch (message().kind) {
+      @case ('text')  { <app-markdown [source]="message().content" /> }
+      @case ('tool')  {
+        @if (message().state === 'pending') {
+          <ng-container *ngComponentOutlet="Skeletons[message().result?.component]" />
+        } @else {
+          <ng-container
+            *ngComponentOutlet="Components[message().result.component];
+              inputs: message().result.props"
+          />
+        }
+      }
+    }
+  `,
+})
+export class MessageComponent {
+  message = input.required<ChatMessage>();
+  Components: Record<string, Type<unknown>> = { InvoiceCard, ErrorCard };
+  Skeletons:  Record<string, Type<unknown>> = { InvoiceCard: InvoiceCardSkeleton };
+}
+```
+
+Three things to notice:
+
+- The tool's `execute` returns a typed `{ component, props }` tuple — a skeleton is rendered while it runs, the real card replaces it when it resolves. The user sees the skeleton in &lt;200ms, the real card a beat later.
+- The schema is the contract. The model must produce a valid `invoiceId` or the call fails clean.
+- The component is part of your app, not the model's imagination. That alone solves 90% of "AI generates broken UI" problems.
+
+## The four primitives worth knowing cold
+
+The SDK is sprawling. In production I lean on four things and rarely the rest:
+
+- **`streamText`** — token-streaming for chat-like surfaces. Mature, boring, exactly right. Framework-neutral.
+- **`generateObject`** — structured output with Zod schemas. Replaces 80% of the prompt-engineering hacks people still write. Framework-neutral.
+- **`streamText` with typed tool payloads** — the generative-UI primitive above. The `ai/rsc` `streamUI` helper is React-only; in Angular we assemble the same pattern from `streamText` + an `NgComponentOutlet` renderer.
+- **A small `ChatService`** — the Angular equivalent of React's `useChat`. A signal-based service that handles SSE, abort, and re-render correctness so the component side stays declarative.
+
+If you're reaching for anything else, it's worth pausing to check whether one of these covers it.
+
+### `streamText` — the workhorse
+
+The shape that ships:
+
+```ts
+// server/api/support.post.ts — Nitro / Node handler
+import { streamText } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
+
+export default defineEventHandler(async (event) => {
+  const { messages } = await readBody(event);
+  const result = await streamText({
+    model: anthropic('claude-sonnet-4'),
+    system: SUPPORT_PROMPT,
+    messages,
+    maxRetries: 2,
+    temperature: 0.2,
+    onFinish: async ({ usage, finishReason, text }) => {
+      await recordTrace({ usage, finishReason, text, route: 'support' });
+    },
+  });
+  return sendStream(event, result.toDataStream({
+    getErrorMessage: (err) => userFacingError(err),
+  }));
+});
+```
+
+What I always set, even on a "boring" `streamText`:
+
+- `maxRetries` for transient provider errors.
+- `onFinish` for cost + eval attribution. If you don't capture this, you're flying blind.
+- `getErrorMessage` so a transport blip doesn't dump a stack trace into the user's chat.
+
+### `generateObject` — the prompt-engineering killer
+
+If your prompt is asking the model to "respond in JSON with the following keys", stop. Use `generateObject`:
+
+```ts
+import { generateObject } from 'ai';
+import { z } from 'zod';
+
+const TicketRouting = z.object({
+  team: z.enum(['billing', 'product', 'auth', 'general']),
+  urgency: z.enum(['low', 'medium', 'high']),
+  reason: z.string().max(180),
+  needs_human: z.boolean(),
+});
+
+const { object: routing } = await generateObject({
+  model: anthropic('claude-haiku-4'),
+  schema: TicketRouting,
+  prompt: `Route this support ticket: ${userMessage}`,
+});
+```
+
+The schema is enforced by the SDK. Invalid responses are auto-retried. The cost-of-bad-JSON failure mode disappears as a category.
+
+### `streamText` + tool payloads — generative UI proper
+
+Covered above. The generative-UI primitive that earns its keep when:
+
+- The set of "what to render next" is bounded by your component library.
+- You want skeleton → real-component transitions cheap.
+- You want streaming + tool calls in one primitive.
+
+### `ChatService` — the Angular equivalent of `useChat`
+
+`useChat` doesn't ship an Angular binding, but it's about 80 lines of `@angular/core` to reproduce. The shape on the client:
+
+```ts
+// chat.service.ts
+import { Injectable, signal, computed, inject } from '@angular/core';
+import { DestroyRef } from '@angular/core';
+
+@Injectable({ providedIn: 'root' })
+export class ChatService {
+  private destroyRef = inject(DestroyRef);
+  private controller?: AbortController;
+
+  readonly messages = signal<ChatMessage[]>([]);
+  readonly input = signal('');
+  readonly error = signal<Error | null>(null);
+  readonly status = signal<'idle' | 'submitted' | 'streaming' | 'error'>('idle');
+  readonly isLoading = computed(() => this.status() !== 'idle' && this.status() !== 'error');
+
+  constructor() {
+    this.destroyRef.onDestroy(() => this.stop());
+  }
+
+  async submit() {
+    const userMessage: ChatMessage = { id: crypto.randomUUID(), role: 'user', kind: 'text', content: this.input() };
+    this.messages.update(m => [...m, userMessage]);
+    this.input.set('');
+    this.status.set('submitted');
+    this.controller = new AbortController();
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ messages: this.messages() }),
+        signal: this.controller.signal,
+      });
+      if (!res.ok || !res.body) throw new Error(`chat failed: ${res.status}`);
+      this.status.set('streaming');
+      await this.consumeStream(res.body);
+      this.status.set('idle');
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') { this.status.set('idle'); return; }
+      this.error.set(err as Error);
+      this.status.set('error');
+    }
+  }
+
+  stop()   { this.controller?.abort(); }
+  reload() { this.error.set(null); this.submit(); }
+
+  private async consumeStream(body: ReadableStream<Uint8Array>) {
+    const reader = body.pipeThrough(new TextDecoderStream()).getReader();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      for (const event of parseDataStream(value)) {
+        this.applyStreamEvent(event); // appends to messages(), updates tool states, etc.
+      }
+    }
+  }
+}
+```
+
+And the chat component:
+
+```ts
+@Component({
+  selector: 'app-chat',
+  standalone: true,
+  imports: [FormsModule, MessageComponent, ErrorBanner],
+  template: `
+    @for (m of chat.messages(); track m.id) {
+      <app-message [message]="m" />
+    }
+    <form (ngSubmit)="chat.submit()">
+      <input [(ngModel)]="inputModel" name="input" />
+      @if (chat.isLoading()) {
+        <button type="button" (click)="chat.stop()">Stop</button>
+      } @else {
+        <button type="submit">Send</button>
+      }
+    </form>
+    @if (chat.error(); as err) {
+      <app-error-banner (retry)="chat.reload()">{{ err.message }}</app-error-banner>
+    }
+  `,
+})
+export class Chat {
+  protected chat = inject(ChatService);
+  protected get inputModel() { return this.chat.input(); }
+  protected set inputModel(v: string) { this.chat.input.set(v); }
+}
+```
+
+What this gives you for free:
+
+- SSE handling (no raw `EventSource` boilerplate outside of `consumeStream`).
+- Abort + reconnect via `AbortController` + `DestroyRef.onDestroy`.
+- Optimistic message append via `messages.update()`.
+- Multi-step tool loops via the `maxSteps` option on `streamText` server-side.
+
+I have rewritten this service from scratch twice in earlier projects. Wrapping it in an injectable is one of the highest-leverage pieces of UI infrastructure you'll write around the SDK.
+
+## Streaming = recovery, not just speed
+
+The unexpected lesson is that streaming isn't primarily a perceived-performance trick. It's an _error recovery_ feature.
+
+When a 9-second model call streams in chunks, three things change:
+
+1. The user can interrupt mid-stream if the answer is going wrong.
+2. Partial output is salvageable — you can persist what arrived before a network blip.
+3. You can show side-effect skeletons (a chart loading, a file thumbnail) before their data resolves.
+
+A non-streamed model call is binary: it works or it doesn't. A streamed one degrades gracefully. That difference dominates at scale.
+
+### Recoverable streams
+
+The pattern I deploy on every chat surface that matters:
+
+```ts
+const stream = result.toDataStream();
+const persisted = stream.pipeThrough(
+  new TransformStream({
+    async transform(chunk, controller) {
+      await persistChunk(threadId, chunk);
+      controller.enqueue(chunk);
+    },
+  }),
+);
+return new Response(persisted, { headers: SSE_HEADERS });
+```
+
+When the user reloads mid-stream, the next page load reads the persisted prefix from storage and resumes the SSE from where it left off. They never see "your message was interrupted." This is a one-day build that prevents a category of complaints.
+
+## Tool calls + UI: the patterns that hold up
+
+After shipping a few generative-UI surfaces, three patterns keep appearing:
+
+### 1. The "card library" surface
+
+The model picks from ~20 typed cards (`InvoiceCard`, `OrderCard`, `UserProfileCard`...). Each card has 1–4 prop variants. The model never invents a card. Best for assistant-style UIs where the answer space is bounded.
+
+The eval rubric for this surface is _which card was picked_, not "is the text plausible."
+
+### 2. The "form synthesis" surface
+
+The model assembles a form from primitive components (`TextField`, `Select`, `DatePicker`) based on the user's intent. Schema-validated end-to-end. Surprisingly robust because the primitives are tightly typed.
+
+```ts
+const FormFieldSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('text'), label: z.string(), name: z.string(), required: z.boolean() }),
+  z.object({ kind: z.literal('select'), label: z.string(), name: z.string(), options: z.array(z.string()) }),
+  z.object({ kind: z.literal('date'), label: z.string(), name: z.string() }),
+]);
+
+const FormSchema = z.object({ title: z.string(), fields: z.array(FormFieldSchema).max(8) });
+
+const { object: form } = await generateObject({
+  model: anthropic('claude-sonnet-4'),
+  schema: FormSchema,
+  prompt: `Generate a form to capture: ${intent}`,
+});
+```
+
+The discriminated union is doing real work here. The model has exactly three options per field; it cannot invent a "color picker" your app doesn't render.
+
+### 3. The "explanation overlay" surface
+
+The model annotates an existing UI — adds tooltips, highlights, sidebar notes. Doesn't replace the UI; augments it. The most _quietly_ impressive pattern, and the easiest to ship without UX risk.
+
+Pick one. Resist the temptation to build all three in the same product. Each comes with its own observability and eval needs.
+
+## Multi-step tool workflows
+
+`maxSteps` on `streamText` enables genuine multi-step tool loops without writing a state machine. The shape:
+
+```ts
+import { streamText, tool } from 'ai';
+import { z } from 'zod';
+
+const result = await streamText({
+  model: anthropic('claude-sonnet-4'),
+  messages,
+  maxSteps: 5,
+  tools: {
+    searchOrders: tool({
+      description: 'Search the user\'s orders by query string. Returns up to 5 matches.',
+      parameters: z.object({ query: z.string() }),
+      execute: async ({ query }) => orders.search(query, { limit: 5 }),
+    }),
+    getOrder: tool({
+      description: 'Fetch an order by id.',
+      parameters: z.object({ orderId: z.string() }),
+      execute: async ({ orderId }) => orders.find(orderId),
+    }),
+  },
+});
+```
+
+Two patterns to internalise:
+
+- **Bound `maxSteps`.** A loop without a ceiling is a runaway bill. Five is usually plenty; ten is a lot; twenty is a bug.
+- **Idempotent tool execution.** A `ChatService` reconnect can re-issue the same tool call. Use idempotency keys for any side-effecting tool.
+
+## Error handling and retries
+
+The error model worth internalising, in priority order:
+
+1. **Transient provider errors.** Use `maxRetries: 2` with exponential backoff (the SDK does this).
+2. **Schema-violation errors from `generateObject`.** Auto-retried by the SDK; if they persist, the prompt is the problem.
+3. **Tool execution errors.** Catch inside `execute` and return a structured failure shape the model can act on (mirror the MCP error pattern: `{ error, message, retryable }`).
+4. **Stream interruption.** Recoverable streams + UI "resume" affordance.
+5. **Hard rate-limit errors.** Surface immediately, do not silently swallow.
+
+```ts
+execute: async ({ orderId }) => {
+  try {
+    return await orders.find(orderId);
+  } catch (err) {
+    if (err instanceof NotFoundError) {
+      return {
+        error: 'order_not_found',
+        message: `No order with id ${orderId}. Try searchOrders first to find the right id.`,
+        retryable: false,
+      };
+    }
+    throw err; // unexpected — let the SDK retry
+  }
+},
+```
+
+## Rate-limit middleware patterns
+
+A pattern I deploy on every public-facing AI route. Token-bucket per user, with a hard ceiling per session and a soft warning at 70%:
+
+```ts
+// server/middleware/rate-limit.ts
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
+
+const limiter = new Ratelimit({
+  redis: Redis.fromEnv(),
+  limiter: Ratelimit.slidingWindow(20, '1 m'),
+  analytics: true,
+});
+
+export async function rateLimit(event: H3Event) {
+  const userId = await getUserId(event);
+  const { success } = await limiter.limit(userId);
+  if (!success) {
+    throw createError({
+      statusCode: 429,
+      statusMessage: 'rate_limited',
+      data: { retryAfterSec: 60 },
+      headers: { 'Retry-After': '60' },
+    });
+  }
+}
+```
+
+Order matters and I get this wrong once a year so here's the canonical sequence:
+
+1. **Rate limit** (cheapest signal; reject before doing work).
+2. **Auth** (decode JWT, attach `tenant_id`, `user_id`).
+3. **Tracing** (span starts here, with auth attributes attached).
+4. **Cost ceiling check** (against the user's running cost for the session).
+5. **Model call.**
+
+Get the order wrong and you'll attribute costs to the wrong tenant or trace requests you rejected.
+
+## SSR + `@defer` streaming integration
+
+The SDK plays well with Angular SSR and `@defer`, but the boundaries matter:
+
+```ts
+@Component({
+  selector: 'app-chat-page',
+  standalone: true,
+  imports: [Chat, ChatSkeleton],
+  template: `
+    @defer (on immediate) {
+      <app-chat />
+    } @placeholder {
+      <app-chat-skeleton />
+    }
+  `,
+})
+export class ChatPage {}
+```
+
+Two rules I live by:
+
+- **Mount `ChatService` consumers _inside_ `@defer`, not around it.** The streaming consumer expects to control its own loading state after hydration; running it during SSR fights the stream.
+- **Don't mix the tool-output stream with parallel route resolvers that depend on the model's output.** The render order will surprise you. If you need both, fetch the dependent data inside the tool's `execute` on the server, not in a `Resolver` on the client route.
+
+## Optimistic UI patterns
+
+`ChatService.messages.update()` already appends optimistically. For tool results that have a known shape, render an optimistic version of the result immediately:
+
+```ts
+@Component({
+  selector: 'app-message-renderer',
+  standalone: true,
+  imports: [Markdown, InvoiceCardSkeleton, InvoiceCard, ErrorCard],
+  template: `
+    @if (message().role === 'tool' && message().toolName === 'showInvoice') {
+      @switch (message().state) {
+        @case ('pending') { <app-invoice-card-skeleton [invoiceId]="message().args.invoiceId" /> }
+        @case ('error')   { <app-error-card [message]="message().error?.message" /> }
+        @default          { <app-invoice-card [invoice]="message().result" /> }
+      }
+    } @else {
+      <app-markdown [source]="message().content" />
+    }
+  `,
+})
+export class MessageRenderer {
+  message = input.required<ChatMessage>();
+}
+```
+
+The skeleton renders while the tool's `execute` is in flight. The transition is invisible. The user perceives "instant."
+
+## Eval verdicts for component selection
+
+For chat surfaces, the eval rubric is text quality. For generative-UI surfaces, the eval rubric is _which component was picked_:
+
+```ts
+type GenUIEvalRow = {
+  id: string;
+  user_message: string;
+  context_state: 'logged_out' | 'browsing' | 'in_cart' | 'post_purchase';
+  expected_component: string;        // e.g., 'showInvoice'
+  acceptable_components: string[];   // e.g., ['showInvoice', 'listInvoices']
+  forbidden_components: string[];    // e.g., ['runCheckout']
+  expected_args_subset?: object;     // partial schema match
+};
+```
+
+A passing run is one where the model picked an acceptable component with arguments that match the expected subset. Run on every prompt PR. Failure to gate component-selection evals is the most common quietly-degrading-quality failure I see in generative-UI products.
+
+## Observability for generative UI specifically
+
+When you ship generative UI, your traces need three things the chat-streaming traces don't:
+
+1. **Per-component-render spans.** Which card was chosen, with which props, in what time.
+2. **A "would-have-rendered" span for tool-call failures.** When the model picked `showInvoice` with a bad ID, you want to know — that's a prompt or schema problem, not a UI bug.
+3. **Eval verdicts attached to component selection, not just text.** Did the model pick the right card given the conversation? The eval rubric is _which-component-was-shown_, not "is the text plausible."
+
+Most teams skip (3). It's the one that prevents quietly degrading model picks over time.
+
+## Security model: server actions and tool exposure
+
+Two rules that have prevented incidents:
+
+### Tools execute on the server, with the user's permissions
+
+Every `execute` runs server-side. Always derive the acting principal from the session, not the model:
+
+```ts
+execute: async ({ invoiceId }) => {
+  const userId = await getUserIdFromContext();
+  const invoice = await db.invoice.find(invoiceId);
+  if (!canRead(userId, invoice)) {
+    return { error: 'forbidden', message: 'You do not have permission to view this invoice.' };
+  }
+  return invoice;
+},
+```
+
+Never accept a `userId` as a tool parameter. The model will helpfully invent one.
+
+### Server Actions are not free of input validation
+
+A Server Action invoked by a tool is still untrusted input. Validate every parameter with the same Zod schema you used to declare the tool. Belt and suspenders.
+
+## Performance benchmarks I've seen
+
+Numbers from a recent generative-UI rollout, normalised to a single user-perceived turn:
+
+| Surface | TTFB (median) | Tool exec time (median) | Total turn (p95) | Notes |
+|---|---|---|---|---|
+| `streamText` chat | 280 ms | n/a | 4.2 s | Boring, fast. |
+| `generateObject` (Haiku) | 510 ms | n/a | 1.9 s | Routing classifier. |
+| `streamUI` with 1 tool, skeleton | 290 ms | 180 ms | 5.1 s | Skeleton in well under perception threshold. |
+| `streamUI` with 2-step tool loop | 310 ms | 340 ms | 8.3 s | Acceptable for "I asked for an invoice" flows. |
+| `ChatService` with `maxSteps: 5`, 3 tools fired | 320 ms | 1.1 s | 14 s | Above this, users want a progress UI. |
+
+If your turn time exceeds 10 seconds without a progress affordance, build a progress affordance. Users tolerate long, narrated waits. They don't tolerate silent ones.
+
+## A full mini-walkthrough: building one generative-UI surface end-to-end
+
+The "show me my invoices" surface in a billing assistant. Five files, end to end.
+
+### 1. The component library
+
+```ts
+// components/invoice-card.component.ts
+import { Component, input } from '@angular/core';
+import { CurrencyPipe } from '@angular/common';
+
+@Component({
+  selector: 'app-invoice-card',
+  standalone: true,
+  imports: [CurrencyPipe],
+  template: `
+    <article class="rounded-xl border p-4">
+      <header>{{ invoice().number }}</header>
+      <p>{{ invoice().total | currency }}</p>
+      <a [href]="invoice().pdfUrl">Download PDF</a>
+    </article>
+  `,
+})
+export class InvoiceCard {
+  invoice = input.required<Invoice>();
+}
+
+@Component({
+  selector: 'app-invoice-card-skeleton',
+  standalone: true,
+  template: `<div class="rounded-xl border p-4 animate-pulse h-32"></div>`,
+})
+export class InvoiceCardSkeleton {}
+```
+
+### 2. The Zod schemas + tool definitions
+
+```ts
+// lib/tools/invoice.ts
+import { z } from 'zod';
+import { tool } from 'ai';
+
+export const showInvoiceTool = tool({
+  description:
+    'Render a single invoice card. Use when the user asks to view, share, or pay a specific invoice.',
+  parameters: z.object({ invoiceId: z.string().regex(/^inv_[a-z0-9]+$/) }),
+  execute: async ({ invoiceId }) => {
+    const userId = await getUserIdFromContext();
+    const invoice = await db.invoice.find(invoiceId);
+    if (!invoice || invoice.userId !== userId) {
+      return { error: 'not_found', message: `No invoice ${invoiceId} for this user.` };
+    }
+    return invoice;
+  },
+});
+```
+
+### 3. The server endpoint
+
+```ts
+// server/api/billing-chat.post.ts — Nitro handler (Angular SSR / Analog / standalone Node all work)
+import { streamText } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { showInvoiceTool } from '~/lib/tools/invoice';
+import { rateLimit } from '~/lib/rate-limit';
+import { recordTrace } from '~/lib/trace';
+
+export default defineEventHandler(async (event) => {
+  const { messages, threadId } = await readBody(event);
+  await rateLimit(event);
+
+  const result = await streamText({
+    model: anthropic('claude-sonnet-4'),
+    system: BILLING_PROMPT,
+    messages,
+    maxSteps: 4,
+    tools: { showInvoice: showInvoiceTool },
+    onFinish: ({ usage, finishReason }) =>
+      recordTrace({ feature: 'billing-chat', threadId, usage, finishReason }),
+  });
+
+  return sendStream(event, result.toDataStream());
+});
+```
+
+The `ai` package is framework-neutral; the only line that changes between Nitro, Express, or a Node HTTP handler is the adapter around `streamText`'s `toDataStream()`.
+
+### 4. The client surface
+
+```ts
+// src/app/billing-chat/billing-chat.component.ts
+import { Component, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { ChatService } from '../chat/chat.service';
+import { InvoiceCard, InvoiceCardSkeleton } from '../components/invoice-card.component';
+
+@Component({
+  selector: 'app-billing-chat',
+  standalone: true,
+  imports: [FormsModule, InvoiceCard, InvoiceCardSkeleton],
+  providers: [{ provide: ChatService, useFactory: () => new ChatService({ api: '/api/billing-chat', maxSteps: 4 }) }],
+  template: `
+    <main>
+      @for (m of chat.messages(); track m.id) {
+        <div>
+          @for (t of m.toolInvocations ?? []; track t.toolCallId) {
+            @if (t.toolName === 'showInvoice') {
+              @if (t.state === 'result') {
+                <app-invoice-card [invoice]="t.result" />
+              } @else {
+                <app-invoice-card-skeleton />
+              }
+            }
+          }
+          <p>{{ m.content }}</p>
+        </div>
+      }
+      <form (ngSubmit)="chat.submit()">
+        <input [ngModel]="chat.input()" (ngModelChange)="chat.input.set($event)" name="q" />
+        <button [disabled]="chat.isLoading()">Send</button>
+      </form>
+    </main>
+  `,
+})
+export class BillingChat {
+  protected chat = inject(ChatService);
+}
+```
+
+### 5. The eval row
+
+```jsonl
+{"id":"bc-001","user_message":"show me invoice inv_abc123","expected_component":"showInvoice","expected_args_subset":{"invoiceId":"inv_abc123"},"forbidden_components":["runCheckout","listOrders"]}
+```
+
+That's the whole pipeline: schema, tool, route, client, eval. Five files, one feature, one number on a dashboard.
+
+## Production deployment checklist
+
+Before the surface goes live to real users:
+
+- [ ] Every tool has a tight Zod schema (no free-form strings unless absolutely required).
+- [ ] Every tool's `execute` derives the acting principal from the session, not the parameters.
+- [ ] `maxSteps` is set on every multi-tool route.
+- [ ] Rate limiting in front of every public AI route.
+- [ ] Per-user cost ceiling enforced.
+- [ ] `onFinish` records cost + finish reason to your trace store.
+- [ ] Error UI exists for: transient errors, schema-violation errors, rate limits, tool execution errors.
+- [ ] Skeletons render in &lt;300ms.
+- [ ] Component-selection eval rows for the top 20 expected user intents.
+- [ ] Recoverable stream pattern in place for surfaces longer than ~5s typical turn time.
+- [ ] Strict-mode double-invocation tested in dev.
+- [ ] Suspense boundaries placed _outside_ the SDK's stream renderers.
+- [ ] Privacy review for anything the model can render with user data.
+
+## Things that bite
+
+A short field guide:
+
+- **Prop-shape drift.** Your component changes its props; the model still passes the old shape. Fix: validate every tool result with the same Zod schema you used to generate it. Throw early.
+- **Streaming + `@defer` + SSR = subtle ordering bugs.** Mount `ChatService` consumers inside `@defer`, not around them, and avoid reading `messages()` from an SSR-evaluated guard.
+- **Tool calls firing twice in dev.** HMR + a component that calls `ChatService.submit()` from `ngOnInit` without a guard will double-invoke on hot reload. Gate with an `isLoading` check or move the call behind an explicit user action.
+- **Middleware order matters.** Rate-limit before auth-decorate before tracing. Get the order wrong and you'll attribute costs to the wrong tenant.
+- **Silent JSON-mode fallback.** Some providers fall back to JSON-in-a-string if the schema is too complex. Test with the actual provider you'll deploy.
+- **Cancelled streams leaving partial DB rows.** Wrap stream consumers in a try/finally that resolves persistence to a clean state.
+- **Markdown sanitisation.** If your `text` renderer trusts the model's output, you have an XSS vector. Use a sanitiser.
+- **Tool descriptors over a few KB silently truncated by the provider.** Keep them short; treat as production code.
+
+## A short FAQ
+
+**Q: Should I use `streamUI` or `streamText` for chat surfaces?**
+
+`streamText` for pure-text chat. `streamUI` when the response space genuinely involves your component library. Mixing both in one route is doable but tends to produce inconsistent UX; pick per surface.
+
+**Q: How do I A/B test a generative UI change?**
+
+Tag traces with the variant id. Compare component-selection eval pass rates between variants on a held-out prompt set. Don't compare clicks alone; clicks reflect novelty, not quality.
+
+**Q: How do I handle long-running tools (e.g., a 30-second report generation)?**
+
+Stream a "preparing your report" component immediately, persist a job id, and have the component poll. Don't block the SDK's tool execution for >10 seconds; the UX will feel broken even if it works.
+
+**Q: Can I use the SDK with a non-Vercel host?**
+
+Yes. The `ai` core is framework-neutral and works on any Node-compatible runtime that supports streaming responses — Nitro (Angular SSR, Analog, Nuxt), Express, Fastify, Cloudflare Workers, Deno. The Vercel-specific niceties are around Edge runtime cold starts and their built-in streaming infrastructure; everything else is portable.
+
+**Q: What about accessibility for AI-generated components?**
+
+Same accessibility rules as any other component. Because the model picks from your component library, accessibility is your library's responsibility — not the model's. Audit the library, not the prompts.
+
+## The honest summary
+
+Generative UI is not a model capability — it's a product surface that combines a strong typed component library, a constrained tool palette, and a streaming runtime. The Vercel AI SDK ships the third one; you build the first two.
+
+Build the component library before you wire the model. Constrain the tool palette before you ship. Add eval verdicts before you scale. The model will get smarter; your contract with it should not.
+
+---
+
+Shipping generative UI in an Angular app right now? I write more on this — [browse the rest](/articles).
