@@ -31,16 +31,10 @@ export function ArticlesIndex({ articles, counts }: Props) {
   );
 
   useEffect(() => {
-    const params = new URLSearchParams(searchParams?.toString() ?? '');
-    if (activeTopic === 'all') {
-      params.delete('topic');
-    } else {
-      params.set('topic', activeTopic);
-    }
-    const query = params.toString();
-    const url = query ? `/articles?${query}` : '/articles';
+    const url = activeTopic === 'all' ? '/articles' : `/articles?topic=${activeTopic}`;
     router.replace(url, { scroll: false });
-  }, [activeTopic, router, searchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only sync URL when user picks a topic
+  }, [activeTopic, router]);
 
   const group = useMemo(() => topicById(activeTopic), [activeTopic]);
   const filtered = useMemo(
