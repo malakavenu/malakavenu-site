@@ -65,7 +65,7 @@ export function Experience() {
         <div className="section-head reveal in">
           <span className="section-eyebrow">Experience</span>
           <h2 className="section-title">
-            A decade across <span className="grad">design</span>,{' '}
+            Over a decade across <span className="grad">design</span>,{' '}
             <span className="grad">platform</span> &amp; <span className="grad">AI</span>
           </h2>
         </div>

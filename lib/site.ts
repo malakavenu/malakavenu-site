@@ -4,7 +4,7 @@ export const SITE = {
   shortName: 'Malaka Venu',
   title: 'Malaka Venugopal Reddy — AI & Agentic Systems Engineer · Frontend Architect',
   description:
-    'AI & Agentic Systems Engineer building agent skills, subagents and MCP servers on AWS Bedrock, OpenAI & Anthropic — woven into production frontends. 10+ years scaling Angular (v2 → v21) & React platforms and driving design-systems strategy.',
+    'AI & Agentic Systems Engineer building agent skills, subagents and MCP servers on AWS Bedrock, OpenAI & Anthropic — woven into production frontends. 11+ years scaling Angular (v2 → v21) & React platforms and driving design-systems strategy.',
   shortDescription:
     'Building agent skills, subagents & MCP servers on AWS Bedrock, OpenAI & Anthropic — woven into production frontends.',
   email: 'venu.malaka@gmail.com',

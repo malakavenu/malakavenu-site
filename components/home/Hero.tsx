@@ -105,7 +105,7 @@ export function Hero() {
             </div>
 
             <p className="hero-desc reveal in delay-2">
-              <strong>AI &amp; Agentic Systems Engineer</strong> with a deep frontend backbone — 10+
+              <strong>AI &amp; Agentic Systems Engineer</strong> with a deep frontend backbone — 11+
               years scaling Angular (v2 → v21) &amp; React platforms. Today I&apos;m building{' '}
               <strong>agent skills, subagents, MCP servers</strong> and multi-agent systems on AWS
               Bedrock, OpenAI &amp; Anthropic — woven into production frontends, generative UI and
@@ -150,7 +150,7 @@ export function Hero() {
 
             <div className="hero-stats reveal in delay-3">
               <div className="stat">
-                <div className="num">10+</div>
+                <div className="num">11+</div>
                 <div className="lbl">Years experience</div>
               </div>
               <div className="stat">

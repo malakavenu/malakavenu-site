@@ -8,7 +8,7 @@ import './resume.css';
 export const metadata: Metadata = buildMetadata({
   title: 'Resume — Malaka Venugopal Reddy',
   description:
-    'Resume of Malaka Venugopal Reddy — AI & Agentic Systems Engineer · Frontend Architect. 10+ years scaling Angular & React platforms.',
+    'Resume of Malaka Venugopal Reddy — AI & Agentic Systems Engineer · Frontend Architect. 11+ years scaling Angular & React platforms.',
   path: '/resume',
   type: 'profile',
 });
@@ -223,7 +223,7 @@ export default function ResumePage() {
                 AI &amp; Agentic Systems Engineer building <strong>agent skills</strong>,{' '}
                 <strong>subagents</strong> and <strong>MCP servers</strong> on AWS Bedrock, OpenAI
                 &amp; Anthropic — woven into production frontends, generative UI and design systems.
-                Backed by 10+ years scaling Angular (v2 → v21) &amp; React platforms for global
+                Backed by 11+ years scaling Angular (v2 → v21) &amp; React platforms for global
                 enterprises and a UI/UX foundation that bridges product, design and infrastructure.
               </p>
             </div>
