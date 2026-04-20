@@ -1581,7 +1581,7 @@ section[id],
     .article-grid { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 640px) {
-    .article-grid { grid-template-columns: 1fr; }
+    .article-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* -------- Article cover (logos + ornaments) -------- */
@@ -2057,7 +2057,7 @@ section[id],
 .writing-foot a:hover { text-decoration: underline; }
 
 @media (max-width: 980px) {
-    .writing-featured { grid-template-columns: 1fr; }
+    .writing-featured { grid-template-columns: minmax(0, 1fr); }
     .featured-sidekicks { grid-template-rows: auto auto; }
     .featured-card .featured-body { padding: 24px 22px 26px; }
 }
@@ -2196,7 +2196,12 @@ section[id],
 }
 
 @media (max-width: 980px) {
-    .writing-hero { grid-template-columns: 1fr; }
+    /* minmax(0, 1fr) — NOT bare 1fr. Without the explicit 0 min,
+       a grid column defaults to min-content and can expand past the
+       container when a child (cover image, long title) has an intrinsic
+       min-content larger than the column, causing the card to bleed
+       past the viewport and clip its own title on the right. */
+    .writing-hero { grid-template-columns: minmax(0, 1fr); }
     .writing-hero-feature .featured-body { padding: 24px 22px 26px; }
 }
 @media (max-width: 640px) {
@@ -2264,7 +2269,7 @@ section[id],
 }
 
 .article-share {
-    display: flex; gap: 8px; margin-top: 22px;
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px;
     padding-top: 18px;
     border-top: 1px dashed var(--border);
 }
@@ -3266,9 +3271,12 @@ section[id],
    ============================================================= */
 @media (max-width: 768px) {
     /* Content gets real horizontal breathing room, and the whole
-       article page respects the safe-area-inset for iOS notches. */
-    section.article-page.writing-page.container,
-    .writing-page.article-page {
+       article page respects the safe-area-inset for iOS notches.
+       Applies to BOTH the writing index (.writing-page) and the
+       individual article detail pages (bare .article-page). */
+    section.article-page.container,
+    article.article-page.container,
+    .article-page {
         padding: 110px max(20px, env(safe-area-inset-right)) 48px max(20px, env(safe-area-inset-left)) !important;
     }
     .writing-header { margin-bottom: 28px; }
@@ -3401,11 +3409,12 @@ section[id],
         color: var(--text-muted);
     }
 
-    /* ---------- Grid → clean single column with compact hero-tiles */
+    /* ---------- Grid → clean single column with compact hero-tiles.
+       minmax(0, 1fr) avoids min-content blowout past the container. */
     .article-grid,
     .writing-grid,
     .writing-grid.article-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
         gap: 18px;
     }
     .writing-grid-card.is-wide { grid-column: auto; }
@@ -3452,6 +3461,9 @@ section[id],
         scrollbar-width: none;
         gap: 10px;
         padding: 2px 14px 4px;
+        /* Edge-fade so the carousel visually reads as "swipe me" */
+        mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
+        -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
     }
     .writing-recent-list::-webkit-scrollbar { display: none; }
     .writing-recent-list li + li { border-top: none; }
@@ -3462,8 +3474,33 @@ section[id],
         border: 1px solid var(--border);
         border-radius: 14px;
     }
-    .writing-mini-card { padding: 12px 14px; }
-    .writing-mini-title { font-size: 0.94rem; }
+    /* Stack tag, title, meta vertically so every card has an identical,
+       predictable layout regardless of how wide the tag pill is.
+       (Default desktop grid is "tag title" / "meta meta" — on mobile
+       a wider tag like "AI FOR DESIGN" squeezed the title column and
+       forced inconsistent line wraps across cards.) */
+    .writing-mini-card {
+        padding: 14px 14px 16px;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr auto;
+        grid-template-areas:
+            "tag"
+            "title"
+            "meta";
+        row-gap: 8px;
+        column-gap: 0;
+        height: 100%;
+        box-sizing: border-box;
+    }
+    .writing-mini-tag { justify-self: start; }
+    .writing-mini-title {
+        font-size: 0.94rem;
+        display: -webkit-box;
+        line-clamp: 3;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+        overflow: hidden;
+    }
 
     .writing-topics { gap: 10px; padding-top: 18px; }
     .writing-topics-pills {

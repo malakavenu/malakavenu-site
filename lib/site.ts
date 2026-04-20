@@ -22,7 +22,7 @@ export const SITE = {
     linkedin: 'https://www.linkedin.com/in/venumalaka',
     github: 'https://github.com/malakavenu',
     x: 'https://x.com/malakavenu',
-    facebook: 'https://www.facebook.com/malakavenu',
+    facebook: 'https://www.facebook.com/profile.php?id=61567201912996',
   },
   nav: [
     { href: '/#about', label: 'About' },
