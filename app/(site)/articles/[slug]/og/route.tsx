@@ -3,22 +3,22 @@ import { getArticleBySlug, getAllSlugs } from '@/lib/articles';
 import { SITE } from '@/lib/site';
 
 export const runtime = 'nodejs';
-export const alt = 'Article cover';
-export const size = { width: 1200, height: 630 };
-export const contentType = 'image/png';
+export const dynamic = 'force-static';
+export const revalidate = 3600;
+
+const size = { width: 1200, height: 630 };
 
 export async function generateStaticParams() {
   const slugs = await getAllSlugs();
   return slugs.map((slug) => ({ slug }));
 }
 
-export default async function ArticleOG({
-  params,
-}: {
-  params: Promise<{ slug: string }> | { slug: string };
-}) {
-  const resolved = await Promise.resolve(params);
-  const article = await getArticleBySlug(resolved.slug);
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ slug: string }> },
+) {
+  const { slug } = await params;
+  const article = await getArticleBySlug(slug);
   const title = article?.title ?? SITE.name;
   const category = article?.category ?? 'Writing';
   const dateLabel = article

@@ -36,7 +36,7 @@ export async function generateMetadata({
     title: article.title,
     description: article.description,
     path: `/articles/${article.slug}`,
-    image: article.ogImage ?? `${SITE.url}/articles/${article.slug}/opengraph-image`,
+    image: article.ogImage ?? `${SITE.url}/articles/${article.slug}/og`,
     type: 'article',
     publishedTime: article.date,
     modifiedTime: article.updated ?? article.date,

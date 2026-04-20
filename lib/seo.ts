@@ -259,7 +259,7 @@ export function blogPostingLd(article: {
     inLanguage: 'en-US',
     keywords: article.tags?.join(', '),
     wordCount: article.wordCount,
-    image: `${url}/opengraph-image`,
+    image: `${url}/og`,
     author: { '@id': `${SITE.url}/#person` },
     publisher: { '@id': `${SITE.url}/#person` },
     mainEntityOfPage: { '@type': 'WebPage', '@id': url },
