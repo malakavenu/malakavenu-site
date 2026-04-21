@@ -1,5 +1,8 @@
+const rawSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+const siteUrl = (rawSiteUrl && rawSiteUrl.length > 0 ? rawSiteUrl : 'https://malakavenu.com').replace(/\/+$/, '');
+
 export const SITE = {
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? 'https://malakavenu.com',
+  url: siteUrl,
   name: 'Malaka Venugopal Reddy',
   shortName: 'Malaka Venu',
   title: 'Malaka Venugopal Reddy — AI & Agentic Systems Engineer · Frontend Architect',
