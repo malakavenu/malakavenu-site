@@ -9,6 +9,11 @@ export type TopicGroup = {
 export const TOPIC_GROUPS: TopicGroup[] = [
   { id: 'all', label: 'All', match: () => true },
   {
+    id: 'beginner',
+    label: 'Beginner AI',
+    match: (c) => c === 'Beginner AI',
+  },
+  {
     id: 'ai',
     label: 'AI · Agentic',
     match: (c) =>

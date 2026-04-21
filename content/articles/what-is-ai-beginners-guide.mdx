@@ -1,0 +1,117 @@
+---
+title: 'What is artificial intelligence? A plain-English guide for complete beginners'
+description: 'AI is everywhere — recommendations, spam filters, voice assistants, medical diagnostics. This guide explains what it actually is, how it works, and why it matters, without jargon or hype.'
+date: '2026-04-19'
+updated: '2026-04-19'
+category: 'Beginner AI'
+tags: ['Beginner', 'AI', 'Machine Learning', 'Deep Learning', 'Neural Networks']
+author: 'Malaka Venugopal Reddy'
+---
+
+You already use artificial intelligence dozens of times a day. When your phone unlocks with your face, when Netflix suggests a show, when Gmail catches a phishing email before you see it — all of those are AI. Yet most explanations of the technology are either so dumbed-down they're useless or so academic they're unreadable.
+
+This article sits in the middle. By the end you'll understand what AI actually is, how the major flavours work, where the real limits are, and how to think about this technology without getting swept up in hype cycles.
+
+## What AI actually means
+
+Artificial intelligence is the broad goal of building software that can perform tasks which, if a human did them, we'd call "intelligent." Pattern recognition. Language understanding. Decision-making under uncertainty. Planning.
+
+The key insight most people miss: **AI today is narrow, not general.** A model that writes poetry can't play chess. A model that detects tumours in X-rays can't hold a conversation. Every AI system you interact with is extremely good at one thing and completely useless at everything else.
+
+The phrase "artificial general intelligence" (AGI) — a system that matches human-level reasoning across all domains — remains a research aspiration, not a product you can buy.
+
+## The three layers: AI → ML → deep learning
+
+These terms are often used interchangeably. They shouldn't be.
+
+**Artificial intelligence** is the umbrella. Any technique that makes software behave "intelligently" counts — including hard-coded rules written by hand in the 1980s.
+
+**Machine learning** is the dominant approach to AI today. Instead of writing rules explicitly ("if email contains 'free money', mark as spam"), you show the system thousands of examples and let it learn the rules itself. The system finds patterns in data. If the pattern isn't in the data, the model can't learn it.
+
+**Deep learning** is a subset of machine learning that uses neural networks with many layers. "Deep" literally means "many layers." These networks can learn incredibly complex representations — edges become shapes, shapes become objects, objects become scenes.
+
+Think of it as a set of Russian nesting dolls: every deep learning system is machine learning, and every machine learning system is AI. But not the other way around.
+
+## How machine learning works, in 60 seconds
+
+1. You collect a dataset — thousands or millions of examples with known answers.
+2. You feed that data into a model (a mathematical function with adjustable knobs called "parameters").
+3. The model makes predictions. A loss function measures how wrong the predictions are.
+4. An optimization algorithm adjusts the parameters to reduce the error.
+5. Repeat steps 3–4 millions of times.
+6. Eventually the model gets good enough at the pattern that it can handle examples it has never seen before.
+
+That's it. Everything else — transformers, attention, diffusion, reinforcement learning — is a variation on this loop.
+
+## The three paradigms
+
+### Supervised learning
+
+You give the model labelled examples: "this email is spam," "this image is a cat." The model learns the mapping from input to label. Most production AI today is supervised — fraud detection, image classification, medical diagnosis.
+
+### Unsupervised learning
+
+No labels. You give the model raw data and ask it to find structure: cluster customers by behaviour, detect anomalies in network traffic, compress high-dimensional data. Useful when you don't know what you're looking for.
+
+### Reinforcement learning
+
+An agent takes actions in an environment and receives rewards or penalties. Over time it learns a strategy that maximises cumulative reward. This is how AlphaGo learned to play Go and how RLHF aligns large language models with human preferences.
+
+## What large language models are
+
+The most visible AI technology right now is the large language model (LLM). ChatGPT, Claude, Gemini, Llama — all LLMs.
+
+An LLM is a neural network trained on trillions of words of text. Its fundamental operation is embarrassingly simple: **predict the next word.** Given "The cat sat on the", the model assigns probabilities to every word in its vocabulary — "mat" might get 12%, "floor" 8%, "table" 4%. It samples from that distribution and appends the result. Then it repeats.
+
+The astonishing part is that this single objective — next-word prediction, scaled to billions of parameters and trillions of training tokens — produces emergent capabilities: reasoning, coding, translation, summarization, creative writing. Nobody explicitly programmed these abilities. They fell out of scale.
+
+### Key vocabulary
+
+- **Token** — the atomic unit a model reads. Not always a whole word; "unbelievable" might become three tokens: `un`, `believ`, `able`.
+- **Context window** — the maximum number of tokens the model can "see" at once (input + output combined). GPT-4 Turbo: 128K tokens. Claude: 200K.
+- **Parameters** — the numbers inside the model that determine its behaviour. GPT-4 has an estimated 1.8 trillion.
+- **Hallucination** — when the model generates plausible-sounding but factually incorrect text. This happens because the model predicts probable sequences, not verified truths.
+
+## Where AI delivers real value today
+
+- **Code generation.** GitHub Copilot writes ~46% of the code for developers who use it. Cursor and Claude Code go further, handling multi-file refactors and test generation.
+- **Customer support.** Klarna's AI agent handles 66% of all support chats — equivalent to 700 human agents — with resolution times down 80%.
+- **Medical imaging.** AI systems match or exceed radiologist accuracy on certain scans, particularly for breast cancer screening and diabetic retinopathy.
+- **Fraud detection.** JPMorgan's AI analyses millions of transactions in real time with fewer false positives than rule-based systems.
+- **Search and research.** Perplexity-style research agents read sources, reason across them, and deliver cited summaries rather than a list of blue links.
+
+## What AI cannot do (yet)
+
+- **Truly understand anything.** LLMs simulate understanding through statistical pattern matching. They have no consciousness, no intentionality, no genuine comprehension.
+- **Guarantee factual accuracy.** Every LLM hallucinates. In high-stakes domains — medicine, law, finance — treating model output as ground truth is dangerous.
+- **Replace judgment.** AI excels at pattern tasks and breaks down on novel edge cases. Human oversight remains essential for decisions with real consequences.
+- **Explain its own reasoning.** Neural networks are largely black boxes. We can observe inputs and outputs; the internal reasoning is opaque.
+
+## A practical starting point
+
+If you're just getting started with AI, here's the order that works:
+
+1. **Use the tools.** Spend a week with ChatGPT, Claude, or Gemini. Prompt them for real tasks — drafting emails, summarizing documents, brainstorming. Notice what works and what doesn't.
+2. **Learn prompt engineering.** The quality gap between a vague prompt and a specific one is often 50% or more. Read our [prompt engineering guide](/articles/prompt-engineering-101-beginners) for the fundamentals.
+3. **Understand LLMs.** Once prompting clicks, dig into [how large language models actually work](/articles/large-language-models-explained-beginners) — tokens, transformers, attention, generation strategies.
+4. **Explore machine learning.** For a broader technical foundation, read our [machine learning basics guide](/articles/machine-learning-basics-beginners-guide).
+5. **Build something.** Pick one repetitive task in your workflow and automate it with AI. Real stakes teach faster than tutorials.
+
+## The honest bottom line
+
+AI in 2026 is genuinely powerful and genuinely limited. It automates pattern-heavy tasks with superhuman speed and consistency. It fails on novel situations, hallucinates under pressure, and has no understanding of the world it describes.
+
+The people getting the most value from AI are not the ones who believe the hype or the ones who dismiss it. They're the ones who understand what the technology actually does — and what it doesn't — and apply it accordingly.
+
+---
+
+**Further reading:**
+
+- [Prompt engineering 101: the complete beginner's guide](/articles/prompt-engineering-101-beginners)
+- [Large language models explained: what every beginner needs to know](/articles/large-language-models-explained-beginners)
+- [Machine learning basics: a complete beginner's guide](/articles/machine-learning-basics-beginners-guide)
+- [What are AI agents? A beginner's guide](/articles/what-are-ai-agents-beginners-guide)
+
+---
+
+*This article synthesizes and adapts concepts from multiple openly published sources, including [OpenAI Academy's "What is AI"](https://openai.com/academy/what-is-ai), [IBM's AI topics series](https://www.ibm.com/think/topics/artificial-intelligence), and community guides on [AIBeginner.net](https://aibeginner.net/beginners-guide-to-ai). All content has been independently rewritten. Original authors and publishers retain copyright over their respective works.*

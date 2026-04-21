@@ -1,0 +1,177 @@
+---
+title: 'RAG explained: a beginner''s guide to retrieval-augmented generation'
+description: 'RAG is how you make LLMs work with your own data without expensive fine-tuning. The architecture, the components, the failure modes, and how to build a production-quality pipeline — explained from first principles.'
+date: '2026-04-15'
+updated: '2026-04-15'
+category: 'Beginner AI'
+tags: ['Beginner', 'RAG', 'LLM', 'Vector Database', 'Embeddings', 'AI Architecture']
+author: 'Malaka Venugopal Reddy'
+---
+
+You've built a chatbot using an LLM. It's impressive — until someone asks it a question about your company's internal documentation. The model has never seen your docs. It either admits it doesn't know (best case) or confidently makes up an answer (worst case). This is the problem RAG solves.
+
+Retrieval-Augmented Generation is the dominant pattern for making LLMs work with your own data. Instead of fine-tuning a model on your documents (expensive, inflexible, and requiring ML expertise), RAG retrieves relevant information at query time and includes it in the prompt. Think of it as giving the model an open-book exam instead of expecting it to have memorized every answer.
+
+## The core idea in one equation
+
+**RAG = Retrieval + Augmentation + Generation**
+
+1. **Retrieve** the right documents for the user's question.
+2. **Augment** the LLM's prompt with those documents as context.
+3. **Generate** an answer grounded in the retrieved information.
+
+The model doesn't need to have memorized your data. It reads it fresh each query.
+
+## How the pipeline works
+
+### Step 1: Indexing (offline, done once)
+
+Before users ask anything, you prepare your knowledge base:
+
+1. **Collect documents** — PDFs, Markdown files, web pages, database records, whatever you have.
+2. **Chunk them** — Split each document into smaller pieces (typically 200–500 tokens). More on this below — chunking is the most underrated step.
+3. **Embed them** — Convert each chunk into a vector embedding — a dense numerical representation that captures semantic meaning.
+4. **Store them** — Save the embeddings in a vector database (Pinecone, Weaviate, Chroma, pgvector, Qdrant — many options exist).
+
+### Step 2: Retrieval (per query)
+
+When a user asks a question:
+
+1. Convert the question into a vector embedding using the same embedding model.
+2. Search the vector database for the most similar document chunks (this is called "semantic search" or "approximate nearest neighbour search").
+3. Return the top-k results (typically 3–10 chunks).
+
+### Step 3: Augmentation
+
+Insert the retrieved chunks into the LLM prompt:
+
+```text
+Based on the following documents:
+
+[Chunk 1: "Our return policy allows returns within 30 days..."]
+[Chunk 2: "For electronics, the return window is extended to 60 days..."]
+[Chunk 3: "All returns require the original receipt or order number..."]
+
+Answer the user's question: "Can I return a laptop I bought 45 days ago?"
+```
+
+### Step 4: Generation
+
+The LLM generates an answer grounded in the provided context. A well-built RAG system produces responses like: "Yes, you can return your laptop. Electronics have a 60-day return window, and your purchase at 45 days falls within that period. You'll need your original receipt or order number."
+
+## Chunking: the step everyone underestimates
+
+How you split documents into chunks has an outsized impact on RAG quality. Get this wrong and retrieval fails regardless of everything else.
+
+### Chunk size
+
+Too small (50 tokens) and you lose context — the chunk doesn't contain enough information to be useful. Too large (2,000 tokens) and you dilute relevance — the chunk contains too much unrelated information. **Start with 200–500 tokens and adjust based on your content.**
+
+### Overlap
+
+Include 10–20% overlap between adjacent chunks so information at chunk boundaries isn't lost. If a critical sentence sits right at the edge of two chunks, overlap ensures it appears in at least one.
+
+### Semantic chunking
+
+Split at natural boundaries — paragraphs, sections, headers — rather than at fixed character counts. A chunk that cuts a sentence in half is worse than one that respects document structure.
+
+### Metadata enrichment
+
+Attach metadata to each chunk: source document, section title, page number, date. This enables filtered retrieval ("only search documents from 2025") and better citation in the generated response.
+
+### Parent document retrieval
+
+A powerful technique: embed small chunks for precise matching but return the larger parent document (or section) for full context. This combines retrieval precision with generation context.
+
+## Improving retrieval quality
+
+The most impactful optimizations, in order of bang-for-buck:
+
+### 1. Better embedding model
+
+Switching from a basic embedding model to a state-of-the-art one can improve retrieval accuracy by 10–30%. Models like `text-embedding-3-large` (OpenAI) or open-source alternatives from Hugging Face make a measurable difference.
+
+### 2. Hybrid search
+
+Combine vector similarity search with traditional keyword search (BM25). Some queries are better served by exact keyword matching; others by semantic similarity. Hybrid captures both.
+
+### 3. Reranking
+
+After initial retrieval (top-20 results), use a cross-encoder reranking model to re-score results. This dramatically improves the precision of your final top-5 results. The initial retriever is fast but approximate; the reranker is slower but much more accurate.
+
+### 4. Query transformation
+
+Rewrite the user's query before searching. Techniques include:
+
+- **HyDE (Hypothetical Document Embeddings)** — generate a hypothetical answer and search for similar documents.
+- **Query expansion** — add synonyms and related terms.
+- **Multi-query** — search with several paraphrases and merge results.
+
+### 5. Metadata filtering
+
+Don't just search semantically — filter by document type, date range, author, or category first. This eliminates irrelevant results that might otherwise score high on semantic similarity alone.
+
+## RAG vs. fine-tuning: when to use which
+
+**Use RAG when:**
+- Your data changes frequently
+- You need source attribution ("this answer came from document X, page Y")
+- You want to control exactly what information the model accesses
+- You have a knowledge base, document collection, or FAQ the model should reference
+
+**Use fine-tuning when:**
+- You need to change the model's style or behaviour
+- You want to teach domain-specific terminology or reasoning patterns
+- You need consistent formatting that prompt engineering can't achieve
+
+**Use both when:**
+- You want domain-specific behaviour AND access to up-to-date information
+- Fine-tune for style/format, RAG for knowledge
+
+In practice, RAG is the right choice for 80%+ of "make the AI know about my stuff" use cases. It's cheaper, doesn't require ML expertise, and your data stays up-to-date without retraining.
+
+## Common failure modes (and how to fix them)
+
+When RAG isn't working well, the problem is almost always in retrieval, not generation.
+
+### "The answer is in my documents but the model says it doesn't know"
+
+The retriever isn't finding the right chunks. Check: is your chunking splitting the relevant passage? Is the query semantically similar to how the information is phrased in the document? Try hybrid search or query transformation.
+
+### "The model makes up information instead of admitting it doesn't know"
+
+Add explicit instructions in the prompt: "Only answer based on the provided context. If the context doesn't contain the answer, say 'I don't have information about that.'" Also consider reducing temperature to 0.
+
+### "Answers are vague or incomplete"
+
+Your chunks may be too small, losing critical context. Try larger chunks or parent-document retrieval. Also check that you're retrieving enough chunks (try top-10 instead of top-3).
+
+### "Retrieval is slow"
+
+Index size, embedding dimension, and query volume all affect speed. Consider approximate nearest neighbour (ANN) indexes, reducing embedding dimensions, or caching frequent queries.
+
+## A minimal RAG stack
+
+For your first RAG project, keep the stack simple:
+
+1. **Documents** — start with a small set of 10–50 documents you know well.
+2. **Chunking** — LangChain or LlamaIndex provide ready-made text splitters.
+3. **Embedding model** — OpenAI's `text-embedding-3-small` (cheap, good quality) or an open-source model from Hugging Face.
+4. **Vector database** — Chroma (runs locally, zero setup) or pgvector (if you already use PostgreSQL).
+5. **LLM** — GPT-4, Claude, or an open-source model via Ollama.
+6. **Framework** — LangChain, LlamaIndex, or Haystack to wire everything together.
+
+Get a working prototype first. Optimize later. The biggest risk isn't choosing the wrong embedding model — it's spending three weeks evaluating tools instead of building something.
+
+---
+
+**Further reading:**
+
+- [What is AI? A beginner's guide](/articles/what-is-ai-beginners-guide)
+- [Large language models explained](/articles/large-language-models-explained-beginners)
+- [Machine learning basics](/articles/machine-learning-basics-beginners-guide)
+- [What are AI agents? A beginner's guide](/articles/what-are-ai-agents-beginners-guide)
+
+---
+
+*This article synthesizes and adapts concepts from multiple openly published sources, including [GlyphSignal's "RAG Explained" guide](https://glyphsignal.com/guides/rag-guide) by the GlyphSignal team, [Amankumar's "The Complete Guide to RAG"](https://medium.com/@aman0611kumar/rag-the-complete-guide-to-retrieval-augmented-generation-060c86976861) on Medium, and [Awesome Agents' "What Is RAG?"](https://awesomeagents.ai/guides/what-is-rag/). Technical foundations reference [Lewis et al., "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks" (2020)](https://arxiv.org/abs/2005.11401). All content has been independently rewritten. Original authors and publishers retain copyright over their respective works.*

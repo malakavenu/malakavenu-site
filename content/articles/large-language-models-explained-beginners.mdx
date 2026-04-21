@@ -1,0 +1,138 @@
+---
+title: 'Large language models explained: what every beginner needs to know'
+description: 'LLMs power ChatGPT, Claude, and Gemini — but what are they, really? Tokens, transformers, attention, hallucinations, and generation strategies, explained without the PhD.'
+date: '2026-04-18'
+updated: '2026-04-18'
+category: 'Beginner AI'
+tags: ['Beginner', 'LLM', 'Transformers', 'GPT', 'Claude', 'NLP', 'Deep Learning']
+author: 'Malaka Venugopal Reddy'
+---
+
+Large language models are the technology behind ChatGPT, Claude, Gemini, and every other AI assistant you've used in the last two years. They write code, summarize research papers, translate languages, debug errors, and pass bar exams. And yet, when you ask someone to explain how they actually work, the answer is usually either hand-wavy ("it predicts the next word!") or impenetrable ("multi-head self-attention with residual connections and layer normalization").
+
+This article gives you the real explanation — rigorous enough to be useful, accessible enough to be readable. No math background required.
+
+## The one-sentence version
+
+An LLM is a neural network built on the transformer architecture that processes, understands, and generates human-like text by predicting the next token in a sequence.
+
+Now let's unpack every word of that sentence.
+
+## From classic NLP to the transformer era
+
+Natural language processing existed for decades before LLMs. But the old techniques — hand-crafted rules, bag-of-words statistics, recurrent neural networks (RNNs) — had a fatal flaw: they processed text sequentially, one word at a time. An RNN reading a 500-word paragraph would gradually forget the opening sentences by the time it reached the end.
+
+The breakthrough came in 2017 with the publication of *Attention Is All You Need* by Vaswani et al. The paper introduced the **transformer**, a neural network architecture that abandons sequential processing entirely. Instead, it computes relationships between every pair of tokens in a sequence simultaneously through a mechanism called **self-attention**. This parallelism made training dramatically faster on GPUs and let models capture context over much longer sequences.
+
+Within a year, Google released BERT, which proved that a transformer pre-trained on large datasets could be fine-tuned to beat every existing NLP benchmark. OpenAI's GPT line pushed the idea further: a single large model could be prompted to perform almost any text task without task-specific fine-tuning. That scaling insight is the foundation of every modern LLM.
+
+## The four concepts you need
+
+### 1. Tokens
+
+A token is the atomic unit a model reads and writes. It's not always a whole word — most LLMs use sub-word tokenization. The word "unbelievable" might be split into three tokens: `un`, `believ`, `able`. This lets models handle rare words, misspellings, and multilingual text with a manageable vocabulary of 32K–100K tokens.
+
+### 2. Context window
+
+The context window is the maximum number of tokens a model can "see" at once — both the input prompt and the generated output combined. GPT-3.5 had a 4,096-token window. GPT-4 Turbo extended this to 128K. Claude offers 200K tokens. Longer windows allow the model to reason over entire books or codebases, but increase memory and compute costs.
+
+### 3. Embeddings
+
+Before the model can process a token, it converts it to a numerical representation — a vector of, say, 4,096 floating-point numbers. This vector lives in a high-dimensional semantic space where similar meanings cluster together. The classic example: the embedding for "king" minus "man" plus "woman" lands near "queen." Embeddings are the bridge between human language and linear algebra.
+
+### 4. Logits and sampling
+
+After all transformer layers have processed the input, the model produces a vector of raw scores — one per vocabulary token — called logits. A softmax function converts these into probabilities. The token with the highest logit is the model's "best guess" for the next word.
+
+But the model doesn't always pick the top token. That's where **sampling strategies** come in.
+
+## How generation actually works
+
+### Temperature
+
+Temperature scales the logits before softmax. A temperature of 0.2 sharpens the distribution — the model almost always picks the highest-probability token, producing deterministic, "safe" text. A temperature of 1.0 leaves the distribution unchanged. Values above 1.0 flatten it, introducing more randomness and creative surprise at the cost of coherence.
+
+### Top-p (nucleus sampling)
+
+Top-p includes only the smallest set of tokens whose cumulative probability exceeds a threshold (commonly 0.9 or 0.95). This dynamically adapts the candidate pool — when the model is confident, only a few tokens qualify; when uncertain, many do.
+
+A common production setting for conversational AI: `temperature=0.7, top_p=0.95` — creative enough to avoid robotic repetition, constrained enough to stay on topic.
+
+## The transformer architecture: a visual mental model
+
+Each transformer layer has two blocks:
+
+1. **Multi-head self-attention.** Each token asks "which other tokens in this sequence are relevant to me?" The model computes this across multiple "heads" in parallel — one head might focus on syntax while another tracks meaning. This is why transformers handle long-range dependencies so well.
+
+2. **Feed-forward network.** After attention, each token passes through a dense neural network that adds non-linear capacity.
+
+**Residual connections** add the input of each block directly to its output, preventing the vanishing gradient problem and letting transformers stack 80+ layers without training instability.
+
+Stack 96 of these layers, give them 1.8 trillion parameters, train on trillions of tokens, and you get GPT-4.
+
+## What LLMs can do today
+
+- **Conversational assistants.** ChatGPT, Claude, and Gemini handle millions of daily queries — drafting emails, debugging code, planning travel.
+- **Code generation.** GitHub Copilot, Cursor, and Claude Code autocomplete functions, generate tests, and refactor legacy code. Studies show AI-assisted developers ship features 30–55% faster on routine tasks.
+- **Research and analysis.** Scientists use LLMs to summarize papers, extract structured data from unstructured text, and draft literature reviews.
+- **Education.** Personalized tutoring systems adapt explanations to a student's level, generate practice problems, and provide instant feedback.
+
+## The limitations you must know
+
+### Hallucinations
+
+LLMs generate statistically plausible text, not verified truth. They confidently cite non-existent papers, invent court cases, and fabricate statistics. In high-stakes domains — medicine, law, finance — hallucinations aren't just annoying, they're dangerous.
+
+### Finite context
+
+Even a 200K-token window has boundaries. Feed the model a 300-page legal contract and quality degrades toward the edges of the window.
+
+### No real understanding
+
+An LLM does not "know" facts — it predicts tokens. Researchers sometimes describe this as a "stochastic parrot." The model simulates understanding through statistical pattern matching, but it has no consciousness, intentionality, or genuine comprehension.
+
+### Compute costs
+
+Training a frontier model costs tens of millions of dollars. Even inference at scale is expensive — serving a model with hundreds of billions of parameters requires clusters of high-end GPUs.
+
+## RAG: making LLMs work with your data
+
+One of the most important patterns to understand as a beginner is **Retrieval-Augmented Generation (RAG)**. Instead of fine-tuning a model on your documents (expensive, inflexible), RAG retrieves relevant information at query time and includes it in the prompt.
+
+The flow:
+
+1. **Index** — split your documents into chunks, convert each chunk into a vector embedding, store in a vector database.
+2. **Retrieve** — when a user asks a question, convert it to a vector and find the most similar document chunks.
+3. **Augment** — insert the retrieved chunks into the LLM prompt as context.
+4. **Generate** — the LLM generates an answer grounded in the provided context.
+
+RAG dramatically reduces hallucinations and keeps answers current — the knowledge base can be updated daily while the model itself may have a months-old training cutoff. For a deeper dive, read our [RAG guide for beginners](/articles/rag-explained-beginners-guide).
+
+## Where the field is heading
+
+- **Longer contexts, cheaper.** Techniques like Ring Attention are pushing context windows past 1 million tokens while keeping compute sub-quadratic.
+- **Multimodality as default.** Leading models already process text, images, audio, and video within a single architecture.
+- **Agents and tool use.** LLMs increasingly orchestrate tools: browsing the web, executing code, querying databases, calling APIs. Read our [AI agents guide](/articles/what-are-ai-agents-beginners-guide) to understand this shift.
+- **Smaller, specialized models.** While frontier labs push toward ever-larger models, a counter-trend favours compact, domain-specific models (1–7B parameters) that run on phones and edge devices.
+
+## Getting started
+
+The fastest way to experiment:
+
+1. **Use ChatGPT or Claude.** Start with the free tiers. Ask real questions, draft real documents, debug real code.
+2. **Learn prompt engineering.** Read our [prompt engineering 101 guide](/articles/prompt-engineering-101-beginners). The difference between a vague prompt and a specific one is often 50% or more in output quality.
+3. **Try the API.** If you're a developer, install the OpenAI or Anthropic SDK and send your first programmatic request. It's a few lines of code.
+4. **Run a model locally.** Tools like Ollama let you run open-source models (Llama, Mistral) entirely on your laptop — no cloud, no API key, no data leaving your machine.
+
+---
+
+**Further reading:**
+
+- [What is AI? A beginner's guide](/articles/what-is-ai-beginners-guide)
+- [Prompt engineering 101: the complete beginner's guide](/articles/prompt-engineering-101-beginners)
+- [RAG explained: a beginner's guide](/articles/rag-explained-beginners-guide)
+- [What are AI agents? A beginner's guide](/articles/what-are-ai-agents-beginners-guide)
+
+---
+
+*This article synthesizes and adapts concepts from multiple openly published sources, including [Decode the Future's "What Is an LLM?"](https://decodethefuture.org/en/what-is-llm-large-language-model/) and [Machine Brief's "What Are Large Language Models"](https://www.machinebrief.com/learn/llms). Technical foundations reference [Vaswani et al., "Attention Is All You Need" (2017)](https://arxiv.org/abs/1706.03762) and [Hugging Face Transformers documentation](https://huggingface.co/docs/transformers). All content has been independently rewritten. Original authors and publishers retain copyright over their respective works.*

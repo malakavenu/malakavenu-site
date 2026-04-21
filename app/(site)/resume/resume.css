@@ -229,8 +229,6 @@
   color: var(--r-brand-1);
 }
 
-.resume-root .exp-item { margin-bottom: 9px; page-break-inside: avoid; }
-.resume-root .exp-item:last-child { margin-bottom: 0; }
 .resume-root .exp-head {
   display: flex;
   justify-content: space-between;
@@ -240,52 +238,119 @@
 }
 .resume-root .exp-title {
   font-family: var(--font-display), 'Space Grotesk', sans-serif;
-  font-size: 9.5pt;
+  font-size: 8.5pt;
   font-weight: 600;
   color: var(--ink);
 }
 .resume-root .exp-date {
-  font-size: 7.5pt;
+  font-size: 7pt;
   color: var(--soft);
   white-space: nowrap;
   font-weight: 500;
   letter-spacing: 0.04em;
-}
-.resume-root .exp-company {
-  font-size: 8.5pt;
-  color: var(--r-brand-1);
-  font-weight: 500;
-  margin-bottom: 4px;
-}
-.resume-root .exp-bullets { list-style: none; padding-left: 0; }
-.resume-root .exp-bullets li {
-  position: relative;
-  padding-left: 11px;
-  margin-bottom: 2px;
-  font-size: 8.5pt;
-  color: var(--ink-2);
-  line-height: 1.4;
-}
-.resume-root .exp-bullets li::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 6px;
-  width: 4px; height: 4px;
-  border-radius: 50%;
-  background: var(--r-grad);
 }
 .resume-root .exp-stack {
   display: flex; flex-wrap: wrap; gap: 3px;
   margin-top: 4px;
 }
 .resume-root .exp-stack span {
-  font-size: 7pt;
-  padding: 1px 6px;
+  font-size: 6.5pt;
+  padding: 1px 5px;
   background: #f1f2f7;
   border: 1px solid var(--rule);
   border-radius: 4px;
   color: var(--ink-2);
   font-weight: 500;
+}
+
+.resume-root .co-block {
+  margin-bottom: 8px;
+  page-break-inside: avoid;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 7px 9px 6px;
+  background: linear-gradient(180deg, #fafbff 0%, #ffffff 100%);
+  position: relative;
+}
+.resume-root .co-block::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: 6px 6px 0 0;
+  background: var(--r-grad);
+}
+.resume-root .co-block:last-child { margin-bottom: 0; }
+
+.resume-root .co-block-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+}
+.resume-root .co-block-name {
+  font-family: var(--font-display), 'Space Grotesk', sans-serif;
+  font-size: 9pt;
+  font-weight: 700;
+  background: var(--r-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.resume-root .co-block-tenure {
+  font-size: 7pt;
+  color: var(--soft);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.resume-root .co-block-roles {
+  padding-left: 12px;
+  position: relative;
+}
+.resume-root .co-block-role {
+  position: relative;
+  padding-bottom: 4px;
+}
+.resume-root .co-block-role:last-child { padding-bottom: 0; }
+
+.resume-root .co-block-role--connected::after {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 12px;
+  bottom: -4px;
+  width: 1.5px;
+  background: linear-gradient(180deg, var(--r-brand-1), var(--r-brand-2));
+  opacity: 0.35;
+}
+.resume-root .co-block-dot {
+  position: absolute;
+  left: -12px; top: 4px;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--r-grad);
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.4);
+  z-index: 1;
+}
+
+.resume-root .co-block-promoted {
+  font-size: 6pt;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--r-brand-2);
+  padding-left: 4px;
+  margin: 1px 0;
+}
+
+.resume-root .co-block-desc {
+  font-size: 7.8pt;
+  color: var(--ink-2);
+  line-height: 1.38;
+  margin-top: 2px;
 }
 
 .resume-root .pillars {

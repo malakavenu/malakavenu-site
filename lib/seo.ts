@@ -27,7 +27,7 @@ export function buildMetadata({
   const url = `${SITE.url}${path}`;
   const finalTitle = title ?? SITE.title;
   const finalDescription = description ?? SITE.description;
-  const finalImage = image ?? `${SITE.url}/opengraph-image`;
+  const finalImage = image ?? `${SITE.url}/images/og-image.png`;
 
   return {
     title: title ?? { absolute: SITE.title },
@@ -184,7 +184,7 @@ export const professionalServiceLd = {
   '@id': `${SITE.url}/#service`,
   name: `${SITE.name} — Frontend Architecture & AI Engineering`,
   url: `${SITE.url}/`,
-  image: `${SITE.url}/opengraph-image`,
+  image: `${SITE.url}/images/og-image.png`,
   description:
     'Frontend architecture, AI & agentic systems engineering, and design-systems strategy for product organizations.',
   founder: { '@id': `${SITE.url}/#person` },

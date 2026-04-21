@@ -1,60 +1,69 @@
-type Job = {
-  badge?: string;
-  date: string;
+type Role = {
   title: string;
-  company: string;
-  description: React.ReactNode;
+  date: string;
+  description: string;
+  current?: boolean;
+};
+
+type Company = {
+  name: string;
+  tenure: string;
+  roles: Role[];
   stack: string[];
 };
 
-const JOBS: Job[] = [
+const COMPANIES: Company[] = [
   {
-    badge: 'Now',
-    date: '2022 — Present',
-    title: 'Frontend Architect — AI & Agentic Systems',
-    company: 'Enterprise Product Engineering',
-    description: (
-      <>
-        Lead frontend architecture for multi-team, multi-product Angular &amp; React platforms. Run
-        a continuous Angular upgrade program — shipped every major from{' '}
-        <strong>v2 through v21</strong> on the 6-month cadence, keeping platforms always on the
-        latest LTS. Drive AI &amp; agentic feature delivery on AWS Bedrock and MCP, design
-        multi-agent orchestrations, and own the design-systems &amp; frontend platform strategy.
-      </>
-    ),
-    stack: [
-      'Angular 2 → 21',
-      'React',
-      'AWS Bedrock',
-      'MCP',
-      'LangGraph',
-      'Nx',
-      'Module Federation',
+    name: 'Epsilon India',
+    tenure: 'Apr 2021 — Present · 5+ yrs',
+    roles: [
+      {
+        title: 'Lead Software Engineer',
+        date: 'Mar 2023 → Present',
+        current: true,
+        description:
+          'Architecting the agentic layer between LLMs and enterprise products — a supervisor dispatching specialised subagents through portable Agent Skills and custom MCP servers on AWS Bedrock. Simultaneously keeping the Angular estate on the bleeding edge: every major from v2 → v21 shipped on cadence, plus a 60-component design system adopted by 8 product teams.',
+      },
+      {
+        title: 'Senior Software Engineer',
+        date: 'Apr 2021 → Feb 2023',
+        description:
+          'Took ownership of the Angular upgrade runway (v10 → v14+) and carved out reusable feature libraries on Nx that halved duplicated UI across four product teams. Stood up the first Storybook + visual-regression pipeline and pushed LCP from 3.8 s to 1.4 s.',
+      },
     ],
+    stack: ['Angular 2 → 21', 'React', 'AWS Bedrock', 'MCP', 'LangGraph', 'Nx', 'Module Federation', 'Storybook'],
   },
   {
-    date: 'Dec 2016 — 2022',
-    title: 'Senior Front End Developer',
-    company: 'Ford — via Cognizant Technology Solutions',
-    description:
-      'Built customer-facing web platforms for Ford. Led component library work, performance hardening, and onboarded multiple feature teams to a shared frontend foundation.',
-    stack: ['Angular 2 → 14', 'RxJS', 'NgRx', 'SCSS', 'D3', 'Storybook'],
+    name: 'Accenture',
+    tenure: 'Jun 2018 — Apr 2021 · ~3 yrs',
+    roles: [
+      {
+        title: 'Application Development Team Lead',
+        date: 'Dec 2019 → Apr 2021',
+        description:
+          'Ran architecture and sprint delivery for a customer-facing Angular platform. Drove the v8 → v11 migration that trimmed bundle size by ~35 % and TTI by nearly two seconds, while lifting test coverage from 45 % to 82 %.',
+      },
+      {
+        title: 'Application Development Senior Analyst',
+        date: 'Jun 2018 → Nov 2019',
+        description:
+          'Built the core module layer — routing, guards, interceptors, state — for enterprise Angular SPAs serving thousands. Shipped real-time dashboards with RxJS streams and WebSockets and owned the integration surface to REST + GraphQL APIs.',
+      },
+    ],
+    stack: ['Angular 6 → 11', 'TypeScript', 'RxJS', 'NgRx', 'GraphQL', 'SCSS', 'Cypress', 'Jenkins'],
   },
   {
-    date: 'May 2015 — Dec 2016',
-    title: 'Web Developer',
-    company: 'Pearson Tutor Services — Cognizant',
-    description:
-      'Delivered learner-facing tutoring experiences with deep focus on accessibility, theming and internationalization for global student audiences.',
-    stack: ['JavaScript', 'jQuery', 'Handlebars', 'Bootstrap', 'PHP'],
-  },
-  {
-    date: 'Dec 2014 — May 2015',
-    title: 'UX/UI Designer',
-    company: 'Cognizant Technology Solutions',
-    description:
-      'Started my career designing and prototyping enterprise interfaces — the design DNA that still informs every architectural decision I make today.',
-    stack: ['Photoshop', 'Wireframing', 'Prototyping', 'HTML / CSS'],
+    name: 'Cognizant Technology Solutions',
+    tenure: 'Mar 2015 — Jun 2018 · 3 yrs 4 mo',
+    roles: [
+      {
+        title: 'Programmer Analyst',
+        date: 'Mar 2015 → Jun 2018',
+        description:
+          'Where it all started — building Ford\'s customer-facing Angular apps from the v2 era onward, standing up D3.js analytics dashboards, and learning the craft of shared component libraries. A formative stint as UX/UI designer on Pearson Tutor Services planted the design DNA that still shapes how I think about frontends.',
+      },
+    ],
+    stack: ['Angular 2 → 14', 'RxJS', 'NgRx', 'D3.js', 'Storybook', 'SCSS', 'jQuery'],
   },
 ];
 
@@ -70,22 +79,40 @@ export function Experience() {
           </h2>
         </div>
 
-        <div className="timeline">
-          {JOBS.map((job) => (
-            <div key={job.title} className="tl-item reveal in">
-              <div className="tl-card">
-                <div className="tl-meta">
-                  {job.badge && <span className="badge">{job.badge}</span>}
-                  <span>{job.date}</span>
-                </div>
-                <h3>{job.title}</h3>
-                <div className="company">{job.company}</div>
-                <p>{job.description}</p>
-                <div className="tl-stack">
-                  {job.stack.map((s) => (
-                    <span key={s}>{s}</span>
-                  ))}
-                </div>
+        <div className="company-timeline">
+          {COMPANIES.map((co) => (
+            <div key={co.name} className="co-card reveal in">
+              <div className="co-header">
+                <h3 className="co-name">{co.name}</h3>
+                <span className="co-tenure">{co.tenure}</span>
+              </div>
+
+              <div className="co-roles">
+                  {co.roles.map((role, i) => (
+                    <div
+                      key={`${role.title}-${role.date}`}
+                      className={`co-role${role.current ? ' co-role--current' : ''}${i < co.roles.length - 1 ? ' co-role--connected' : ''}`}
+                  >
+                    <div className="co-role-dot" />
+                    <div className="co-role-body">
+                      <div className="co-role-head">
+                        <span className="co-role-title">{role.title}</span>
+                        {role.current && <span className="co-role-badge">Now</span>}
+                        <span className="co-role-date">{role.date}</span>
+                      </div>
+                      {i < co.roles.length - 1 && (
+                        <span className="co-promoted">&#9650; Promoted</span>
+                      )}
+                      <p>{role.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="co-stack">
+                {co.stack.map((s) => (
+                  <span key={s}>{s}</span>
+                ))}
               </div>
             </div>
           ))}

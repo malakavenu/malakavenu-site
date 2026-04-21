@@ -302,107 +302,126 @@ export default function ResumePage() {
                 Professional Experience
               </h3>
 
-              <div className="exp-item">
-                <div className="exp-head">
-                  <div className="exp-title">
-                    AI &amp; Agentic Systems Engineer · Frontend Architect
-                  </div>
-                  <div className="exp-date">2022 — Present</div>
+              <div className="co-block">
+                <div className="co-block-head">
+                  <div className="co-block-name">Epsilon India</div>
+                  <div className="co-block-tenure">5+ yrs</div>
                 </div>
-                <div className="exp-company">Enterprise Product Engineering</div>
-                <ul className="exp-bullets">
-                  <li>
-                    <strong>Lead AI &amp; agentic delivery</strong> — supervisor + subagent
-                    architecture with portable <strong>agent skills</strong>, custom{' '}
-                    <strong>MCP servers</strong> and multi-agent orchestrations on AWS Bedrock;
-                    shipped 12 subagents, 8 MCP servers, streaming RAG (&lt;800 ms first token)
-                    with end-to-end traces and evals.
-                  </li>
-                  <li>
-                    Lead frontend architecture for multi-team Angular &amp; React platforms across
-                    an Nx monorepo with module federation.
-                  </li>
-                  <li>
-                    <strong>Continuous Angular upgrade — every major v2 → v21</strong> on the
-                    6-month cadence, keeping platforms on the latest LTS and unlocking Signals,
-                    control flow, standalone components, deferred loading and SSR/Hydration as
-                    they shipped.
-                  </li>
-                  <li>
-                    Own design-systems strategy: tokens, primitives, Storybook, accessibility
-                    (WCAG 2.2) and adoption across product teams.
-                  </li>
-                  <li>
-                    Set frontend platform direction — DX, Vite/esbuild tooling, CI/CD,
-                    observability and Web Vitals budgets.
-                  </li>
-                </ul>
+                <div className="co-block-roles">
+                  <div className="co-block-role co-block-role--connected">
+                    <div className="co-block-dot"></div>
+                    <div className="co-block-role-body">
+                      <div className="exp-head">
+                        <div className="exp-title">Lead Software Engineer</div>
+                        <div className="exp-date">Mar 2023 — Present</div>
+                      </div>
+                      <p className="co-block-desc">
+                        Supervisor + subagent architecture with portable Agent Skills and custom
+                        MCP servers on AWS Bedrock — 12 subagents, 8 MCP servers, −40%
+                        time-to-resolve. Angular v2 → v21 on the 6-month cadence. 60-component
+                        design system, 95% adoption.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="co-block-promoted">&#9650; Promoted</div>
+                  <div className="co-block-role">
+                    <div className="co-block-dot"></div>
+                    <div className="co-block-role-body">
+                      <div className="exp-head">
+                        <div className="exp-title">Senior Software Engineer</div>
+                        <div className="exp-date">Apr 2021 — Feb 2023</div>
+                      </div>
+                      <p className="co-block-desc">
+                        Angular upgrade runway v10 → v14+, Nx feature libraries cutting
+                        duplicated UI ~50%. Storybook + visual-regression pipeline. LCP 3.8 s →
+                        1.4 s.
+                      </p>
+                    </div>
+                  </div>
+                </div>
                 <div className="exp-stack">
-                  <span>Agent Skills</span>
-                  <span>Subagents</span>
-                  <span>MCP Servers</span>
-                  <span>AWS Bedrock</span>
-                  <span>LangGraph</span>
                   <span>Angular 2 → 21</span>
                   <span>React</span>
+                  <span>AWS Bedrock</span>
+                  <span>MCP</span>
+                  <span>LangGraph</span>
                   <span>Nx</span>
                   <span>Storybook</span>
                 </div>
               </div>
 
-              <div className="exp-item">
-                <div className="exp-head">
-                  <div className="exp-title">Senior Front End Developer</div>
-                  <div className="exp-date">Dec 2016 — 2022</div>
+              <div className="co-block">
+                <div className="co-block-head">
+                  <div className="co-block-name">Accenture</div>
+                  <div className="co-block-tenure">~3 yrs</div>
                 </div>
-                <div className="exp-company">Ford — via Cognizant Technology Solutions</div>
-                <ul className="exp-bullets">
-                  <li>
-                    Built customer-facing web platforms for Ford on Angular 2 → 14, adopting each
-                    new major release as it shipped, with RxJS and NgRx state management.
-                  </li>
-                  <li>
-                    Led shared component library work, introduced Storybook, and onboarded
-                    multiple feature teams onto the common frontend foundation.
-                  </li>
-                  <li>
-                    Drove performance hardening, lazy-loading strategies and visual regression
-                    tests, materially improving Web Vitals scores.
-                  </li>
-                  <li>Designed data-visualization modules with D3.js for analytics dashboards.</li>
-                </ul>
+                <div className="co-block-roles">
+                  <div className="co-block-role co-block-role--connected">
+                    <div className="co-block-dot"></div>
+                    <div className="co-block-role-body">
+                      <div className="exp-head">
+                        <div className="exp-title">Application Development Team Lead</div>
+                        <div className="exp-date">Dec 2019 — Apr 2021</div>
+                      </div>
+                      <p className="co-block-desc">
+                        Architecture &amp; delivery for a customer-facing Angular platform.
+                        Angular 8 → 11 upgrade — bundle size −35%, TTI −1.8 s. Test coverage
+                        45% → 82%.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="co-block-promoted">&#9650; Promoted</div>
+                  <div className="co-block-role">
+                    <div className="co-block-dot"></div>
+                    <div className="co-block-role-body">
+                      <div className="exp-head">
+                        <div className="exp-title">Application Development Senior Analyst</div>
+                        <div className="exp-date">Jun 2018 — Nov 2019</div>
+                      </div>
+                      <p className="co-block-desc">
+                        Core modules, reusable UI components and real-time dashboards with RxJS
+                        &amp; WebSockets for enterprise Angular SPAs.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="exp-stack">
+                  <span>Angular 6 → 11</span>
+                  <span>RxJS</span>
+                  <span>NgRx</span>
+                  <span>GraphQL</span>
+                  <span>Cypress</span>
+                  <span>Jenkins</span>
+                </div>
+              </div>
+
+              <div className="co-block">
+                <div className="co-block-head">
+                  <div className="co-block-name">Cognizant Technology Solutions</div>
+                  <div className="co-block-tenure">3 yrs 4 mo</div>
+                </div>
+                <div className="co-block-roles">
+                  <div className="co-block-role">
+                    <div className="co-block-dot"></div>
+                    <div className="co-block-role-body">
+                      <div className="exp-head">
+                        <div className="exp-title">Programmer Analyst</div>
+                        <div className="exp-date">Mar 2015 — Jun 2018</div>
+                      </div>
+                      <p className="co-block-desc">
+                        Ford customer-facing Angular apps v2 → v14, D3.js analytics dashboards,
+                        shared component library. Early UX/UI design on Pearson Tutor Services.
+                      </p>
+                    </div>
+                  </div>
+                </div>
                 <div className="exp-stack">
                   <span>Angular 2 → 14</span>
                   <span>RxJS</span>
                   <span>NgRx</span>
-                  <span>SCSS</span>
                   <span>D3.js</span>
                   <span>Storybook</span>
-                </div>
-              </div>
-
-              <div className="exp-item">
-                <div className="exp-head">
-                  <div className="exp-title">Web Developer · UX/UI Designer</div>
-                  <div className="exp-date">Dec 2014 — Dec 2016</div>
-                </div>
-                <div className="exp-company">
-                  Pearson Tutor Services &amp; Cognizant Technology Solutions
-                </div>
-                <ul className="exp-bullets">
-                  <li>
-                    Delivered learner-facing tutoring experiences with deep focus on
-                    accessibility, theming and i18n; started as a UX/UI designer — the design DNA
-                    that still informs every architectural decision today.
-                  </li>
-                </ul>
-                <div className="exp-stack">
-                  <span>JavaScript</span>
-                  <span>jQuery</span>
-                  <span>Handlebars</span>
-                  <span>Bootstrap</span>
-                  <span>PHP</span>
-                  <span>Photoshop</span>
+                  <span>SCSS</span>
                 </div>
               </div>
             </section>
@@ -426,13 +445,13 @@ export default function ResumePage() {
               <div className="resume-edu-grid">
                 <div className="resume-edu-item">
                   <div className="yr">2010 — 2014</div>
-                  <h4>Bachelor of Technology</h4>
-                  <p>JNTU Anantapur</p>
+                  <h4>Bachelor of Technology (B.Tech.)</h4>
+                  <p>JNTUA College of Engineering, Anantapur · ECE</p>
                 </div>
                 <div className="resume-edu-item">
                   <div className="yr">2008 — 2010</div>
-                  <h4>Board of Secondary Education</h4>
-                  <p>Sri Chaitanya Junior College, Tirupathi</p>
+                  <h4>Board of Secondary Education, MPC</h4>
+                  <p>Sri Chaitanya Junior College, Tirupati</p>
                 </div>
               </div>
             </section>
