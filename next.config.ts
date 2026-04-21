@@ -41,6 +41,12 @@ const nextConfig: NextConfig = {
 
   async redirects() {
     return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: '(?<sub>.*)\\.vercel\\.app' }],
+        destination: 'https://malakavenu.com/:path*',
+        permanent: true,
+      },
       { source: '/index.html', destination: '/', permanent: true },
       { source: '/articles.html', destination: '/articles', permanent: true },
       { source: '/resume.html', destination: '/resume', permanent: true },
