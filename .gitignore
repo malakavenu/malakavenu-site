@@ -42,3 +42,6 @@ next-env.d.ts
 
 # private marketing/launch drafts — keep local only
 /marketing
+
+# lighthouse reports (local only)
+/.lighthouse/

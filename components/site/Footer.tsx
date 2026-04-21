@@ -8,7 +8,7 @@ export function Footer() {
   return (
     <footer className="footer">
       <div className="container footer-inner">
-        <Link href="/" className="nav-brand" aria-label={`${SITE.name} — home`}>
+        <Link href="/" className="nav-brand" aria-label={`Malaka Venu — home (${SITE.name})`}>
           <BrandMark gradId="lmf" />
           <span className="brand-text">
             Malaka<span className="grad">Venu</span>

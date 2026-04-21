@@ -20,7 +20,7 @@ export function Header() {
   return (
     <header className={`nav${scrolled ? ' scrolled' : ''}`} id="navbar">
       <div className="container nav-inner">
-        <Link href="/" className="nav-brand" aria-label={`${SITE.name} — home`}>
+        <Link href="/" className="nav-brand" aria-label={`Malaka Venu — home (${SITE.name})`}>
           <BrandMark />
           <span className="brand-text">
             Malaka<span className="grad">Venu</span>

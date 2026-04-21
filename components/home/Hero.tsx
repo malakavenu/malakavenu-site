@@ -175,7 +175,8 @@ export function Hero() {
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onFlip()}
                 role="button"
                 tabIndex={0}
-                aria-label="Flip identity card"
+                aria-label="Malaka Venu — flip identity card to see bio, resume and contact"
+                aria-pressed={flipped}
               >
                 <div className="hero-id-face hero-id-front">
                   <div className="hero-glow"></div>
@@ -238,7 +239,7 @@ export function Hero() {
                   </span>
                 </div>
 
-                <div className="hero-id-face hero-id-back" aria-hidden={!flipped}>
+                <div className="hero-id-face hero-id-back" aria-hidden={!flipped} inert={!flipped}>
                   <p className="hero-id-bio">
                     I architect <strong>AI-driven web apps</strong> and agentic systems — currently
                     shipping Agent Skills, MCP servers and generative UI patterns from Bangalore.

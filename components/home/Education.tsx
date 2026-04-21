@@ -10,12 +10,12 @@ export function Education() {
         <div className="edu-grid">
           <div className="edu-card reveal in">
             <div className="yr">2010 — 2014</div>
-            <h4>Bachelor of Technology</h4>
+            <h3>Bachelor of Technology</h3>
             <p>JNTU Anantapur · Computer Science</p>
           </div>
           <div className="edu-card reveal in delay-1">
             <div className="yr">Always</div>
-            <h4>Continuous learning</h4>
+            <h3>Continuous learning</h3>
             <p>
               Tracking the AI / agentic frontier — papers, MCP server building, weekend agent
               demos.

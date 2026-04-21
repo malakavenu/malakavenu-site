@@ -176,6 +176,14 @@ export const websiteLd = {
     'Portfolio and writing of Malaka Venugopal Reddy — AI & Agentic Systems Engineer, Frontend Architect, Design Systems Strategist.',
   publisher: { '@id': `${SITE.url}/#person` },
   inLanguage: 'en-US',
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: {
+      '@type': 'EntryPoint',
+      urlTemplate: `${SITE.url}/articles?topic={search_term_string}`,
+    },
+    'query-input': 'required name=search_term_string',
+  },
 };
 
 export const professionalServiceLd = {

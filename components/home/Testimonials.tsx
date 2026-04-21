@@ -43,7 +43,7 @@ export function Testimonials() {
               <div className="t-author">
                 <div className="t-avatar">{q.initials}</div>
                 <div className="who">
-                  <h5>{q.name}</h5>
+                  <h3>{q.name}</h3>
                   <span>{q.role}</span>
                 </div>
               </div>

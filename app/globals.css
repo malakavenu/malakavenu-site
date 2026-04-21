@@ -897,7 +897,7 @@ section[id],
     letter-spacing: 0.1em;
     margin-bottom: 10px;
 }
-.edu-card h4 { font-family: var(--font-display); font-size: 1.05rem; margin-bottom: 4px; }
+.edu-card h3 { font-family: var(--font-display); font-size: 1.05rem; margin-bottom: 4px; font-weight: 700; }
 .edu-card p  { color: var(--text-muted); font-size: 0.88rem; }
 
 /* -------- Portfolio -------- */
@@ -1441,7 +1441,7 @@ section[id],
     font-weight: 700; color: white;
     font-family: var(--font-display);
 }
-.t-author .who h5 { font-size: 0.95rem; font-weight: 600; }
+.t-author .who h3 { font-size: 0.95rem; font-weight: 600; margin: 0; }
 .t-author .who span { font-size: 0.8rem; color: var(--text-muted); }
 
 /* -------- Contact -------- */
