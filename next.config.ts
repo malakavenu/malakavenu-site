@@ -14,6 +14,15 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
 
+  // Ensure MDX article sources are packaged into serverless bundles that
+  // read them at request time (sitemap, rss). Next's file tracer can't
+  // always resolve fs.readdir(process.cwd(), 'content', 'articles') paths,
+  // so we include them explicitly to prevent cold-invocation 500s.
+  outputFileTracingIncludes: {
+    '/sitemap.xml': ['./content/articles/**/*.mdx'],
+    '/rss.xml': ['./content/articles/**/*.mdx'],
+  },
+
   images: {
     formats: ['image/avif', 'image/webp'],
     remotePatterns: [
@@ -41,6 +50,12 @@ const nextConfig: NextConfig = {
 
   async redirects() {
     return [
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.malakavenu.com' }],
+        destination: 'https://malakavenu.com/:path*',
+        permanent: true,
+      },
       {
         source: '/:path*',
         has: [{ type: 'host', value: '(?<sub>.*)\\.vercel\\.app' }],

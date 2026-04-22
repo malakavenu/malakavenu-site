@@ -1,6 +1,8 @@
 import { SITE } from '@/lib/site';
-import { getAllArticles } from '@/lib/articles';
+import { getAllArticles, type ArticleMeta } from '@/lib/articles';
 
+// Generate at build time and refresh hourly; never cold-invoke at request time.
+export const dynamic = 'force-static';
 export const revalidate = 3600;
 
 function escapeXml(input: string): string {
@@ -12,14 +14,9 @@ function escapeXml(input: string): string {
     .replace(/'/g, '&apos;');
 }
 
-export async function GET() {
-  const articles = await getAllArticles();
-  const lastBuild = articles[0]?.updated ?? articles[0]?.date ?? new Date().toISOString();
-
-  const items = articles
-    .map((a) => {
-      const url = `${SITE.url}/articles/${a.slug}`;
-      return `    <item>
+function renderItem(a: ArticleMeta): string {
+  const url = `${SITE.url}/articles/${a.slug}`;
+  return `    <item>
       <title>${escapeXml(a.title)}</title>
       <link>${url}</link>
       <guid isPermaLink="true">${url}</guid>
@@ -27,8 +24,21 @@ export async function GET() {
       <description>${escapeXml(a.description)}</description>
       ${a.tags?.map((t) => `<category>${escapeXml(t)}</category>`).join('\n      ') ?? ''}
     </item>`;
-    })
-    .join('\n');
+}
+
+export async function GET() {
+  // Swallow article-parse failures so the RSS feed never 500s — serving a
+  // minimal valid feed is better than breaking podcast/reader integrations.
+  let articles: ArticleMeta[] = [];
+  try {
+    articles = await getAllArticles();
+  } catch (err) {
+    console.error('[rss] failed to enumerate articles', err);
+  }
+
+  const lastBuild =
+    articles[0]?.updated ?? articles[0]?.date ?? new Date().toISOString();
+  const items = articles.map(renderItem).join('\n');
 
   const xml = `<?xml version="1.0" encoding="UTF-8" ?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
