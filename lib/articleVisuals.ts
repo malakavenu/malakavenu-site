@@ -41,6 +41,7 @@ export const ARTICLE_VISUALS: Record<string, ArticleVisual> = {
   'ai-ready-codebase-structure':     { variant: 'cyan',   logos: [siClaude],                              mono: '/CLAUDE.md' },
   'ai-and-design-systems':           { variant: 'warm',   logos: [siFigma, siClaude],                     mono: '/design×ai' },
   'angular-21-signals-zoneless':     { variant: 'warm',   logos: [siAngular],                             mono: '/v21' },
+  'angular-folder-structure-for-ai-agents': { variant: 'warm', logos: [siAngular, siClaude],                mono: '/features/' },
   'bedrock-agentcore-production':    { variant: 'warm',   logos: [siAnthropic],                           mono: '/bedrock' },
   'core-web-vitals-inp-2026':        { variant: 'cyan',   logos: [siLighthouse, siGooglechrome],          mono: '/inp' },
   'creative-coding-webgl-2026':      { variant: 'cyan',   logos: [siThreedotjs, siWebgl],                 mono: '/webgl' },
