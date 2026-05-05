@@ -1,0 +1,347 @@
+---
+title: "We built our own Figma → Code MCP. Here's why the official one wasn't enough."
+description: "An honest field report on why generic Figma-to-code MCPs hallucinate at enterprise scale, the three failure modes you'll keep paying for, and what a design-system-aware MCP actually looks like in production."
+date: '2026-05-05'
+updated: '2026-05-05'
+category: 'MCP'
+tags: ['MCP', 'Figma', 'Design Systems', 'AI Agents', 'Context Engineering', 'Agent Tools', 'Frontend Architecture']
+author: 'Malaka Venugopal Reddy'
+cover: '/images/articles/figma-mcp-design-system-aware.png'
+ogImage: '/images/articles/figma-mcp-design-system-aware.png'
+---
+
+In September 2025, Figma launched their official Dev Mode MCP server.
+
+The internet cheered. "Figma to code, finally solved." Engineering managers forwarded the announcement. Twitter threads dissected it. Half the design-system community quietly started planning their migration.
+
+A few months later, my team — running an internal design system used by dozens of applications — sat through our second demo of the official server. The Figma frame went in. Code came out.
+
+It looked great in the demo. It compiled. It even ran.
+
+But none of us shipped it.
+
+Because none of that code used **our** components. None of it used **our** tokens. None of it followed **our** rules. It was, technically, code. Practically, it was a beautiful re-implementation of our design system in flat HTML and ad-hoc CSS — exactly the thing we'd spent three years building a design system to prevent.
+
+That's when we decided to build our own. This is the long-form version of every Slack thread I've had since.
+
+<img
+  src="/images/articles/figma-mcp-design-system-aware.png"
+  alt="Two side-by-side pipelines: a generic Figma MCP producing flat divs marked with a red X, and a design-system-aware MCP producing structured component code with token references marked with a green check."
+  width="1200"
+  height="627"
+/>
+
+## The landscape, with the discomfort included
+
+Let's get the numbers straight before the opinions.
+
+- **85% of developers** use AI coding tools.
+- **79% of companies** have deployed AI coding agents.
+- Claude Code alone has captured **69% market share** in the agentic IDE category.
+- Pull requests per author are up **20% year over year**.
+
+So far, so optimistic. Now the same datasets:
+
+- Incidents per pull request are up **23.5%**.
+- Only **8% of enterprise teams** describe their design system as "very stable."
+- Only **45% of organisations** have any formal AI usage policy.
+- A 2025 CodeRabbit study found AI co-authored code had **1.7× more major issues and 2.74× more security vulnerabilities** than human-only code.
+- A METR trial found experienced developers were **19% slower** with AI tools while perceiving themselves as faster.
+
+We're shipping faster, breaking more, and the design systems meant to keep us consistent are buckling under AI-generated code that nobody designed and everybody owns.
+
+Into this mess, MCP — the **Model Context Protocol** — arrived as a structured way for AI agents to access tools deterministically. Figma's Dev Mode MCP server was the headline use case: point your IDE agent at a Figma frame, get code back.
+
+It works. It's also not enough. The reason is the gap between *generic* and *specific* — and the gap is where every enterprise design system lives.
+
+## What Figma's official MCP actually gives you
+
+Credit where it's due. The official Figma MCP server is genuinely useful. It exposes:
+
+- **Design context extraction.** Variables, components, layout data, lifted directly into the agent's context.
+- **Frame-to-code generation.** Pick a frame, get a code suggestion in your IDE.
+- **Canvas write access.** Agents can create and modify Figma content from the editor side.
+- **Code Connect integration.** Map Figma components to source files in your repo.
+- **Make resources.** Additional context for AI agents using the broader Figma surface.
+
+For a startup with one product, one designer, and a small component library, this might be all you need. The remote server is on every plan, the desktop server is on every Dev/Full seat, and the docs are good.
+
+For an enterprise with a real design system — multiple frameworks, hundreds of components, thousands of tokens, dozens of consuming apps, accessibility audits, theming requirements, and a design language refined over years — it's the wrong abstraction at the wrong layer.
+
+Here's why.
+
+## The three hallucinations generic MCPs can't fix
+
+When AI generates UI code without your design system, it hallucinates in three predictable ways. They're not edge cases; they're the default behaviour.
+
+### 1. Semantic hallucination
+
+The agent invents token names that don't exist.
+
+It writes `color.brand.500` when your system uses `color.primary.solid`. It picks `text-large` instead of `font-size-heading-2`. It uses `space-4` when your scale jumps `--space-3` → `--space-5` and there's no `--space-4`.
+
+You can't grep these mistakes. They compile. They render. They drift.
+
+> **Field note:** the team that audited a 600-component repo for token correctness after six months of AI-assisted PRs found roughly **3,400 hardcoded values** that should have been token references. The team that didn't audit found out via a brand refresh that took a month longer than the previous one.
+
+### 2. Visual hallucination
+
+The agent hardcodes colors and spacing that *look* right and *aren't*.
+
+`#2563EB` instead of `var(--color-primary)`. `padding: 16px` instead of `padding: var(--spacing-md)`. `border-radius: 8px` instead of `var(--radius-md)`.
+
+These pass code review on a Monday. They become tech debt by Friday. By the time you change your brand color, you've got 400 hardcoded hex values across 60 repos, and the rebrand turns into a six-month code archaeology project.
+
+### 3. Structural hallucination
+
+This is the worst one. The agent invents component APIs.
+
+It writes `<Button type="primary">` when your component is `<Button variant="primary">`. It builds a card from three nested divs when your system has a `<Card>` primitive. It re-implements a select dropdown that already exists three layers deep. It uses an element selector when your design system uses an attribute directive on a native element.
+
+The output looks plausible. It even looks like good code. It just isn't *your* code.
+
+The root cause for all three is **context starvation**. Without explicit access to your design system's source of truth, models fall back to the statistically plausible — which means **shadcn/ui defaults from 2023 training data**. Every AI-generated UI starts to look the same because every AI is guessing from the same priors.
+
+> **Rule of thumb:** if a junior engineer with only your README and a half-day of onboarding would make a mistake, your AI will make the same mistake — just faster, more confidently, and at higher volume.
+
+## "But Code Connect maps Figma components to code components"
+
+True. And it's a good feature. I use it. Don't skip it.
+
+But Code Connect tells the agent *which file to import from*. It does not tell the agent:
+
+- That `Button` and `IconButton` are the same component with a different prop, not two components.
+- That this Figma "input field" is actually three different components depending on context (form vs filter vs inline-edit).
+- That your spacing scale jumps from 16px to 24px and the agent should not invent a 20px middle value.
+- That a "card with image" is a `Media` pattern, not five nested divs.
+- That dark theme requires `var(--color-surface)` and never a literal `#FFFFFF`.
+- That your team uses one component shape for primary buttons and a different one for icon buttons, even though both look like buttons in Figma.
+- That your monorepo has six framework variants of every component and the agent should pick the right one.
+- That your accessibility checklist requires a programmatic label, not a placeholder, on every input.
+
+That kind of knowledge isn't in Figma. It isn't in your repo's plain code. It lives in your design system docs, your code conventions, your accessibility playbook, your Storybook MDX, and the heads of three senior engineers.
+
+The official MCP gives an agent a **map of the building**. Your design system needs the agent to know **how the building works** — fire codes, load-bearing walls, the door that's broken on Tuesdays.
+
+## Generic MCP vs. design-system-aware MCP
+
+Here's how I'd explain the gap to a CTO in one slide.
+
+| Capability | Generic Figma MCP | Design-System-Aware MCP |
+|---|---|---|
+| Extract Figma nodes | Yes | Yes |
+| Map raw variables | Yes | Yes |
+| Knows your components by name | No | Yes |
+| Maps Figma styles → your CSS variables | Partial, manual | Yes, deterministic |
+| Knows variants, slots, and composition rules | No | Yes |
+| Enforces theming and dark-mode rules | No | Yes |
+| Generates code that compiles first try | Sometimes | Almost always |
+| Catches design-system violations on review | No | Yes |
+| Adapts to your monorepo structure | No | Yes |
+| Handles framework-specific conventions | Generic templates | Native idioms |
+| Survives a design system version bump | Manual rework | Versioned, automatic |
+| Works across Cursor, Claude, Copilot, Windsurf | Yes | Yes |
+
+The official MCP is a **horizontal** tool — broad, applies everywhere, knows nothing specific.
+
+A design-system-aware MCP is a **vertical** tool — narrow, applies only to you, knows everything that matters.
+
+In enterprise software, vertical almost always wins. Salesforce beat generic CRMs. Datadog beat generic logging. Linear beat generic project management. The pattern repeats wherever specificity compounds.
+
+## Four principles before the parts list
+
+Before getting to the architecture, the principles that drove every decision.
+
+**Principle 1.** Treat your design system as a *machine-readable knowledge base*, not a Figma library plus a docs site. The two artefacts AI tools can read are *your repo* and *whatever you expose as MCP tools*. Anything else may as well not exist.
+
+**Principle 2.** Expose that knowledge as *MCP tools*, not prompts. Tools are deterministic. Prompts drift. A tool that returns "spacing.md is 16px" is the same answer at 2 AM Wednesday as it was at noon Monday. A prompt that says "remember our spacing tokens" is a wish.
+
+**Principle 3.** Ship the same knowledge through *every channel an agent can read* — IDE rules, agent skills, subagents, slash commands, and a universal `AGENTS.md`. Wherever the agent is, the rules are.
+
+**Principle 4.** Make the knowledge *versioned*, *reviewable*, and *owned by the design-system team*, not the AI team. AI is the consumer; the design system is the contract. Confuse those owners and the system rots within two quarters.
+
+## What we actually built
+
+Five parts, each one earning its place.
+
+### A. A knowledge base generator
+
+A script that walks your component source — Storybook stories, prop tables, type definitions, style imports, MDX docs — and produces structured Markdown. Components, foundations (colors, spacing, typography), and composite patterns (page layouts, form layouts, filter bars).
+
+The output is plain text. AI tools love plain text. Human reviewers can sanity-check it. The source of truth stays in *the code itself* — Storybook stories, types, design tokens — not in a CMS that drifts the moment you stop watching it.
+
+```text
+knowledgebase/
+├── components/
+│   ├── button.md        # selector, props, slots, examples, do/don't
+│   ├── card.md
+│   └── ...
+├── foundations/
+│   ├── colors.md        # token map, theming, dark-mode contracts
+│   ├── spacing.md
+│   └── typography.md
+└── patterns/
+    ├── form-layout.md   # composed pattern, ready-to-use code
+    ├── page-header.md
+    └── filters-bar.md
+```
+
+Re-generate on every PR that touches a Storybook story or a token file. Store the output in the repo. Diff in code review the same way you'd review any other code.
+
+### B. A small set of MCP tools
+
+The exact list looks different for every team. The shape that's worked for me clusters into a handful of jobs the agent needs done — and one tool that ties them all together:
+
+```
+figma_to_code  →  Figma frame in, design-system-correct component code out
+```
+
+That single tool is the headline. It's the one demo product, design, and engineering all care about, and it's what a CTO will ask you about in the second meeting.
+
+Around it, the agent needs a few quieter helpers — the kind any reasonable design-system MCP should expose:
+
+- A way to **discover** what's available in your system on first use.
+- A way to **describe** a component, foundation, or composite pattern in detail when the agent needs it.
+- A way to **look up** a raw value (e.g., `16px`) and get the semantic token that owns it.
+- A way to **audit** a piece of code or PR for design-system compliance, read-only.
+
+Name them however you like. What matters is that each one wraps a slice of the knowledge base or a workflow, and that the agent can compose them into the answer it needs without ever guessing.
+
+> **Field note on tool design:** the tools that get called are the ones with descriptions that say *what to do*, *when to use them*, and *when **not** to use them*. The third clause prevents 80% of mis-invocation. I've written about this in detail in [Designing MCP servers your agents will actually use](/articles/mcp-server-design).
+
+### C. A universal `AGENTS.md` plus IDE asset installer
+
+One CLI command installs five things into a project:
+
+- `AGENTS.md` — the universal brief every agent reads. Picked up by Cursor, Claude Code, Windsurf, Copilot, Amazon Q. The baseline brief.
+- IDE rules (always-on) — non-negotiable conventions: naming, tokens, import paths, framework idioms.
+- IDE rules (on-demand) — workflows that activate on a trigger (e.g., the agent sees a Figma URL → the conversion workflow loads).
+- Skills — triggered procedures for common tasks: *"QA this PR"*, *"convert this Figma frame"*, *"upgrade this component to v2"*.
+- Subagents and slash commands — isolated agents with restricted tool access for sensitive operations.
+
+The installer auto-detects whether the project is set up for Cursor (`.cursor/`), Claude Code (`.claude/`), or both — and copies the right asset format. Same content, different file extensions. Pragmatic, not religious.
+
+```text
+your-project/
+├── AGENTS.md
+├── .cursor/
+│   └── rules/
+│       ├── ds-standards.mdc            # always-on
+│       ├── ds-figma-workflow.mdc       # on-demand
+│       ├── ds-compliance-review.mdc    # agent-requestable
+│       └── ds-component-upgrade.mdc    # agent-requestable
+└── .claude/
+    ├── skills/
+    │   ├── ds-compliance-review/SKILL.md
+    │   └── ds-component-upgrade/SKILL.md
+    ├── agents/
+    │   └── ds-qa-reviewer.md           # subagent with tool allowlist
+    └── commands/
+        └── ds-audit.md                 # slash command
+```
+
+If you want the deeper structural mental model behind these six artefacts, I wrote about it in [The anatomy of an AI-ready codebase](/articles/ai-ready-codebase-structure).
+
+### D. Two transport modes
+
+**Stdio** for IDE integration on the developer's machine. Local. Fast. Works offline. Standard MCP setup.
+
+**Streamable HTTP** for a deployed server every team in the company can hit at one URL. Same tools, same knowledge base, no per-developer install. Useful for shared CI tasks, browser-based review tools, and onboarding new engineers in five minutes instead of fifty.
+
+The choice isn't "which one" — it's "both." Solo dev gets local. Enterprise gets centralised. No fork, no two-track maintenance.
+
+### E. The QA reviewer subagent
+
+This deserves its own section.
+
+## The subagent that can't write code
+
+Here's a hard-earned lesson from running design-system reviews at scale:
+
+> **An agent told to "review only" will, given enough time and a hopeful user, eventually write code.**
+
+Prompts are probabilistic. *"Don't apply fixes during review"* is a wish, not a guarantee. Eventually a user says *"while you're at it, can you also fix this?"* and the agent obliges. Six months in, you have an audit log full of helpful, well-intentioned, undocumented code changes.
+
+When that agent is reviewing a design-system change that propagates to dozens of consuming apps, the blast radius is enormous.
+
+So we stopped relying on the prompt and started relying on the **tool boundary**.
+
+```yaml
+# Subagent definition
+name: ds-qa-reviewer
+description: Read-only design-system QA reviewer
+tools: Read, Grep, Glob, SemanticSearch, Bash, WebFetch
+```
+
+That `tools:` line is an explicit allowlist. The subagent **cannot** call `Write`, `StrReplace`, `Delete`, or `Edit`. The host runtime won't expose those tools to this subagent at all. Even if the user types *"fix it,"* the agent has no tool to fix it with.
+
+This is the difference between a *promise* and a *guarantee*. It converts a probabilistic instruction into a **deterministic constraint at the tool-call boundary** — capability-based security, applied to AI agents.
+
+For sensitive workflows — design-system reviews, security audits, dependency upgrades, infrastructure changes — this matters more than any prompt-engineering trick. It's the same lesson kernel engineers learned forty years ago: enforce at the boundary, not in the policy. I covered this pattern in more depth in [Subagents in production](/articles/subagents-in-production).
+
+## What changed after we shipped it
+
+Six months in, the qualitative wins that mattered most:
+
+- **First-try compilation rate** for Figma-to-code went from "rarely" to "almost always." When the agent knows your component names, props, and token references, it stops inventing them. The PR cycle that used to be *generate → fix imports → fix tokens → fix component APIs → ship* collapsed to *generate → ship*.
+- **Code-review comments about design-system violations** dropped sharply. Most violations were caught at generate time, not review time. The reviewers stopped being grammar checkers.
+- **Design-system adoption** went up. When the easiest path for an AI to generate code is *your* path, teams stop reinventing components. The flywheel runs in your favour, not against you.
+- **Onboarding time** dropped. New engineers asked the agent instead of asking the design-system team. The agent's answers were on-system because the system was the agent's training surface.
+- **Design-system team load** dropped. Same reason. The team stopped fielding "how do I use the form layout" questions and started shipping new patterns.
+
+The *fastest* code path became the *correct* code path. That's the whole game.
+
+> **Rule of thumb:** every time you find yourself fixing the same thing in AI output across multiple prompts, that's a design-system bug, not an AI bug. The AI is consistent. Fix once at the knowledge-base layer and the fix propagates everywhere.
+
+## Should you build your own?
+
+Honest answer: probably not, if your design system is small and your team is small. The official Figma MCP is genuinely good for that case. Don't build infrastructure you don't need.
+
+But if you check three or more of these boxes, build it:
+
+- You have a real, versioned design system with **50+ components**.
+- You have **multiple framework targets** (Angular *and* React, for example).
+- You have a **monorepo** or multi-repo setup with shared infrastructure.
+- You have a **design-system team** that already maintains docs and Storybook.
+- You have **multiple apps** consuming your system.
+- You care about **theming, accessibility, and brand fidelity** at the code level.
+- Your **design tokens have semantic names** that AI training data does not know.
+- You're seeing **drift in AI-generated PRs** that your reviewers keep catching.
+
+If three or more are true, every day you don't have a design-system-aware MCP is a day your AI agents are quietly drifting your codebase away from your design system. The cost is invisible until a rebrand or a major version bump, at which point it's measured in person-quarters.
+
+## A practical 90-day plan
+
+If you're convinced and want a sequence, here's the shape that's worked twice:
+
+**Days 0–14 — Audit.** Inventory components, foundations, patterns. Find the gaps between what's documented and what exists. Most teams discover here that 30% of their "official" components aren't documented anywhere. Fix the docs first; everything else is downstream.
+
+**Days 15–30 — Knowledge base generator.** Script that walks Storybook, types, and tokens → emits Markdown. Wire it into CI on every PR. The output is your contract surface.
+
+**Days 31–45 — First three MCP tools.** `hi_<ds>`, `get_component_docs`, `get_design_tokens`. Stdio only. Wire into Cursor and Claude Code for one team. Don't go wide yet.
+
+**Days 46–60 — `figma_to_code` plus pattern docs.** This is where the demo gets real. Pair with a designer; convert ten production frames; iterate the prompt and the knowledge base together until the conversion lands clean.
+
+**Days 61–75 — Universal `AGENTS.md` and IDE assets.** Skills, rules, subagent for QA. Roll out to a second team. Watch for the friction; fix the friction.
+
+**Days 76–90 — HTTP transport, QA review tool, broad rollout.** Deploy the server centrally. Add `ux_qa_review`. Open it up to the rest of engineering with office hours and a Slack channel.
+
+Most of the work isn't the MCP. It's the knowledge base. The MCP is a thin layer over the contract; the contract is the thing.
+
+## The mental model shift
+
+The biggest thing we learned wasn't technical. It was a reframing.
+
+For ten years, we thought of a design system as **a thing humans use**. Figma libraries for designers. Storybook for engineers. Notion for everyone else. Polished docs sites with hero animations.
+
+In the agent era, your design system is **a thing AI uses**. The humans are now reviewers and conductors. The AI does the first draft. And the AI is only as good as what your design system gives it.
+
+If your design system isn't machine-readable, AI-accessible, versioned, and tool-exposed, your AI is going to default to shadcn/ui in 2023 — every time, every prompt, forever. Every screen will look like every other AI-generated screen on the internet. Your moat will quietly evaporate.
+
+The official Figma MCP is the floor. **Your** design-system-aware MCP is the ceiling.
+
+We built ours because the floor wasn't where we wanted to live.
+
+---
+
+If you're building (or thinking about building) a design-system-aware MCP server, I'd love to compare notes. [Drop me a line](/#contact) — happy to share specifics on the parts of this that took the longest, the parts that surprised us, and the parts that are still unfinished.

@@ -48,6 +48,7 @@ export const ARTICLE_VISUALS: Record<string, ArticleVisual> = {
   'design-engineer-role-2026':       { variant: 'cyan',   logos: [siLinear, siVercel],                    mono: '/craft' },
   'design-tokens-w3c-2026':          { variant: 'violet', logos: [siStorybook],                           mono: '/tokens' },
   'figma-make-ai-design-tooling':    { variant: 'warm',   logos: [siFigma],                               mono: '/make' },
+  'figma-mcp-design-system-aware':   { variant: 'violet', logos: [siFigma, siModelcontextprotocol],       mono: '/figma→mcp' },
   'geometry-of-streets-beyond-code': { variant: 'violet',                                                 mono: '/geometry',     ornament: 'grid' },
   'llm-observability-evals':         { variant: 'violet', logos: [siDatadog, siSentry],                   mono: '/observability' },
   'mcp-server-design':               { variant: 'violet', logos: [siModelcontextprotocol],                mono: '/mcp' },
