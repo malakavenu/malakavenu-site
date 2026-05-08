@@ -19,6 +19,11 @@ const ROLES = [
   'Design Systems Strategist',
 ];
 
+// Longest role text — used as an invisible width-reservation "ghost" so the
+// typing animation never causes the row to grow/shrink and shove the rest of
+// the hero around (zero CLS during the rotate).
+const LONGEST_ROLE = ROLES.reduce((a, b) => (b.length > a.length ? b : a), '');
+
 function useRoleRotator() {
   const [text, setText] = useState(ROLES[0]);
   useEffect(() => {
@@ -99,8 +104,13 @@ export function Hero() {
 
             <div className="hero-rotator reveal in delay-1">
               <span className="label">Currently exploring</span>
-              <span className="role" id="roleRotator" aria-live="polite">
-                {role}
+              <span className="role" id="roleRotator">
+                <span className="role-text" aria-live="polite">
+                  {role}
+                </span>
+                <span className="role-ghost" aria-hidden="true">
+                  {LONGEST_ROLE}
+                </span>
               </span>
             </div>
 
@@ -182,10 +192,10 @@ export function Hero() {
                   <div className="hero-glow"></div>
                   <div className="hero-photo">
                     <Image
-                      src="/images/hero.jpg"
+                      src="/images/hero-2026.jpg"
                       alt="Malaka Venugopal Reddy — Frontend Architect, AI & Agentic Systems Engineer, Bangalore"
-                      width={900}
-                      height={1200}
+                      width={1024}
+                      height={1535}
                       priority
                       sizes="(max-width: 1024px) 360px, 440px"
                     />

@@ -9,6 +9,7 @@ import { Experience } from '@/components/home/Experience';
 import { Education } from '@/components/home/Education';
 import { Testimonials } from '@/components/home/Testimonials';
 import { WritingTeaser } from '@/components/home/WritingTeaser';
+import { AssistantPrompts } from '@/components/assistant/AssistantPrompts';
 import { Contact } from '@/components/home/Contact';
 import { breadcrumbLd, professionalServiceLd } from '@/lib/seo';
 import { SITE } from '@/lib/site';
@@ -33,6 +34,7 @@ export default function HomePage() {
       <Education />
       <Testimonials />
       <WritingTeaser />
+      <AssistantPrompts />
       <Contact />
     </>
   );

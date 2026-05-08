@@ -8,6 +8,7 @@ import { ShareButtons } from '@/components/article/ShareButtons';
 import { ReadTracker } from '@/components/article/ReadTracker';
 import { ReadingNow } from '@/components/article/ReadingNow';
 import { Giscus } from '@/components/article/Giscus';
+import { ArticleReadingRail } from '@/components/assistant/ArticleReadingRail';
 import { getAllArticles, getArticleBySlug, getAllSlugs } from '@/lib/articles';
 import { getArticleFreshness } from '@/lib/articleVisuals';
 import { blogPostingLd, breadcrumbLd, buildMetadata } from '@/lib/seo';
@@ -131,6 +132,12 @@ export default async function ArticlePage({ params }: { params: Promise<Params> 
           <Mdx source={article.content} />
         </div>
 
+        <ArticleReadingRail
+          slug={article.slug}
+          title={article.title}
+          speakable={toSpeakable(article.content)}
+        />
+
         <ReadTracker
           slug={article.slug}
           readingMinutes={article.readingTimeMinutes}
@@ -196,4 +203,22 @@ export default async function ArticlePage({ params }: { params: Promise<Params> 
       </article>
     </>
   );
+}
+
+/**
+ * Convert MDX/Markdown body into a clean plain-text string suitable for TTS.
+ * Strips JSX, code fences, images, and Markdown syntax. Conservative: any
+ * residue is fine — TTS will gracefully ignore stray characters.
+ */
+function toSpeakable(mdx: string): string {
+  return mdx
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`[^`]*`/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/!\[[^\]]*]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
+    .replace(/^\s{0,3}#+\s+/gm, '')
+    .replace(/[*_~>]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 }

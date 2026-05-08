@@ -30,7 +30,7 @@ export default function ResumePage() {
             <div className="avatar-block">
               <div className="avatar-ring">
                 <Image
-                  src="/images/avatar.png"
+                  src="/images/avatar-2026.png"
                   alt="Malaka Venugopal Reddy"
                   width={156}
                   height={156}

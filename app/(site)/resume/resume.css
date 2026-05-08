@@ -416,13 +416,36 @@
 
 @media print {
   @page { size: A4; margin: 0; }
-  html, body { background: white !important; font-size: 10pt; }
+  html, body {
+    background: white !important;
+    font-size: 10pt;
+    /* Mobile-breakpoint sets `padding-bottom: 92px` on body to clear the
+       MobileDock — that's irrelevant when printing and would push us to a
+       second blank page. Reset all body padding for print. */
+    padding: 0 !important;
+    margin: 0 !important;
+  }
   .resume-root { padding: 0; background: white; }
   .resume-root .page {
     width: 210mm;
-    min-height: 297mm;
+    /* slight slack under 1 A4 page so floating shadows / margins don't push
+       content onto an empty second page. */
+    min-height: 296mm;
     margin: 0 auto;
     box-shadow: none;
-    page-break-after: always;
+    page-break-after: avoid;
+    page-break-inside: avoid;
+    break-after: avoid-page;
+  }
+  /* Hide all non-resume chrome when exporting to PDF or printing the page. */
+  header.nav,
+  footer.footer,
+  .mobile-dock,
+  .scroll-progress,
+  .asl-fab,
+  .asd-overlay,
+  .asd-shell,
+  .arr-rail {
+    display: none !important;
   }
 }

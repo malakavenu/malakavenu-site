@@ -72,3 +72,20 @@ export async function expire(key: string, seconds: number): Promise<void> {
 export async function incrBy(key: string, by = 1): Promise<number | null> {
   return call<number>(['INCRBY', key, by]);
 }
+
+/** Set a string value with TTL (seconds). Returns true on success. */
+export async function setEx(key: string, value: string, ttlSeconds: number): Promise<boolean> {
+  const result = await call<string>(['SET', key, value, 'EX', ttlSeconds]);
+  return result === 'OK';
+}
+
+/** Get a raw string value or null if missing/expired. */
+export async function getString(key: string): Promise<string | null> {
+  const result = await call<string | null>(['GET', key]);
+  return typeof result === 'string' ? result : null;
+}
+
+/** Delete a key. Best-effort, ignores result. */
+export async function del(key: string): Promise<void> {
+  await call<unknown>(['DEL', key]);
+}

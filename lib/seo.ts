@@ -105,7 +105,7 @@ export const personLd = {
   name: SITE.name,
   alternateName: ['Malaka Venu', 'Venu Malaka'],
   url: `${SITE.url}/`,
-  image: `${SITE.url}/images/hero.jpg`,
+  image: `${SITE.url}/images/hero-2026.jpg`,
   jobTitle: 'AI & Agentic Systems Engineer · Frontend Architect',
   description: SITE.description,
   email: `mailto:${SITE.email}`,
@@ -282,6 +282,6 @@ export function profilePageLd() {
     url: `${SITE.url}/resume`,
     name: `${SITE.name} — Resume`,
     about: { '@id': `${SITE.url}/#person` },
-    primaryImageOfPage: `${SITE.url}/images/hero.jpg`,
+    primaryImageOfPage: `${SITE.url}/images/hero-2026.jpg`,
   };
 }

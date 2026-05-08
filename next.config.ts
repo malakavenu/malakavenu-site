@@ -38,7 +38,7 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
       },
       {
-        source: '/Malaka_Venugopal_Reddy.pdf',
+        source: '/Malaka_Venugopal_Reddy-2026.pdf',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=2592000, immutable' }],
       },
       {

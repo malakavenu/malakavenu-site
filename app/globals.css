@@ -37,6 +37,10 @@
     --radius-lg: 24px;
     --radius-xl: 32px;
 
+    /* Vertical clearance for floating elements (assistant launcher, article rail).
+       Bumped up at the mobile-dock breakpoint so they don't collide with the dock. */
+    --float-bottom-clearance: 0px;
+
     --container: 1200px;
 
     --font-display: var(--font-space-grotesk), 'Space Grotesk', 'Inter', system-ui, -apple-system, sans-serif;
@@ -353,8 +357,8 @@ section[id],
 }
 
 .hero-rotator {
-    display: inline-flex;
-    align-items: center;
+    display: flex;
+    align-items: baseline;
     flex-wrap: wrap;
     gap: 10px;
     font-family: var(--font-display);
@@ -365,14 +369,35 @@ section[id],
 }
 .hero-rotator .label { color: var(--text-muted); }
 .hero-rotator .role {
+    /* Ghost-driven width reservation: the visible `.role-text` is absolutely
+       positioned over an invisible `.role-ghost` that holds the widest role.
+       Result: zero layout shift while the typewriter effect runs. */
+    position: relative;
     display: inline-block;
+    border-bottom: 2px dashed rgba(34, 211, 238, 0.4);
+    padding-bottom: 2px;
+}
+.hero-rotator .role-text {
+    position: absolute;
+    inset: 0;
     background: var(--grad-cool);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    min-width: 220px;
-    border-bottom: 2px dashed rgba(34, 211, 238, 0.4);
-    padding-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+}
+.hero-rotator .role-ghost {
+    visibility: hidden;
+    pointer-events: none;
+    user-select: none;
+    white-space: nowrap;
+}
+@media (max-width: 640px) {
+    /* On narrow screens we let the role wrap naturally rather than push the
+       hero text width past the viewport. The ghost still reserves height. */
+    .hero-rotator .role-text { white-space: normal; overflow: visible; }
+    .hero-rotator .role-ghost { white-space: normal; }
 }
 
 .hero-desc {
@@ -2682,6 +2707,8 @@ section[id],
 @media (max-width: 1024px) {
     .mobile-dock { display: block; }
     body { padding-bottom: 92px; }
+    /* Lift floating elements (launcher, article rail) above the dock. */
+    :root { --float-bottom-clearance: 92px; }
     /* Hide the desktop Resume CTA at this breakpoint too — dock now hosts it. */
     .nav-cta .btn { display: none; }
 }

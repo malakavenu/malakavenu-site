@@ -36,7 +36,7 @@ export const SITE = {
     { href: '/#contact', label: 'Contact' },
   ],
   ogImage: '/opengraph-image',
-  resumePdf: '/Malaka_Venugopal_Reddy.pdf',
+  resumePdf: '/Malaka_Venugopal_Reddy-2026.pdf',
   giscus: {
     repo: process.env.NEXT_PUBLIC_GISCUS_REPO ?? '',
     repoId: process.env.NEXT_PUBLIC_GISCUS_REPO_ID ?? '',

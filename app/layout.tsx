@@ -5,6 +5,8 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import { SITE } from '@/lib/site';
 import { buildMetadata, personLd, websiteLd, professionalServiceLd } from '@/lib/seo';
 import { JsonLd } from '@/components/site/JsonLd';
+import { AssistantProvider } from '@/components/assistant/AssistantContext';
+import { AssistantLauncher } from '@/components/assistant/AssistantLauncher';
 import './globals.css';
 
 const inter = Inter({
@@ -74,7 +76,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${spaceGrotesk.variable}`}>
       <body>
-        {children}
+        <AssistantProvider>
+          {children}
+          <AssistantLauncher />
+        </AssistantProvider>
         <JsonLd data={[personLd, websiteLd, professionalServiceLd]} />
         <Analytics />
         <SpeedInsights />
