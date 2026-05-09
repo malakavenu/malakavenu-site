@@ -1,0 +1,1793 @@
+/* =============================================================
+   AI Playground — interactive, creative, mobile-first
+   Scoped to /playground. Class names use the `pg-` prefix to avoid
+   collisions with the rest of the site stylesheet.
+   ============================================================= */
+
+/* -------- Hero -------- */
+.pg-hero {
+    position: relative;
+    padding: 110px 0 28px;
+    overflow: hidden;
+}
+.pg-hero::before {
+    content: '';
+    position: absolute;
+    inset: -10% -10% auto -10%;
+    height: 80%;
+    background:
+        radial-gradient(700px 400px at 18% 30%, rgba(124, 92, 255, 0.22), transparent 60%),
+        radial-gradient(640px 380px at 85% 20%, rgba(34, 211, 238, 0.18), transparent 60%),
+        radial-gradient(420px 340px at 60% 100%, rgba(244, 114, 182, 0.14), transparent 60%);
+    filter: blur(8px);
+    pointer-events: none;
+    z-index: -1;
+    animation: pgHeroDrift 22s ease-in-out infinite alternate;
+}
+@keyframes pgHeroDrift {
+    0%   { transform: translate3d(0, 0, 0) scale(1); }
+    100% { transform: translate3d(-3%, 2%, 0) scale(1.05); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .pg-hero::before { animation: none; }
+}
+
+.pg-hero-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+    background: rgba(124, 92, 255, 0.08);
+    margin-bottom: 16px;
+}
+.pg-hero-eyebrow .pg-pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #34d399;
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.6);
+    animation: pgPulse 2s infinite;
+}
+@keyframes pgPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.6); }
+    70%  { box-shadow: 0 0 0 10px rgba(52, 211, 153, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
+
+.pg-hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 5.5vw, 3.6rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.06;
+    margin: 0 0 14px;
+}
+.pg-hero-title .pg-grad {
+    background: var(--grad-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+.pg-hero-sub {
+    color: var(--text-muted);
+    font-size: 1.05rem;
+    line-height: 1.6;
+    max-width: 620px;
+    margin: 0 0 22px;
+}
+
+.pg-hero-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.pg-hero-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: var(--text-soft);
+}
+.pg-hero-stat strong {
+    color: var(--text);
+    font-weight: 600;
+}
+.pg-hero-stat .pg-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--brand-2);
+    box-shadow: 0 0 8px var(--brand-2);
+}
+
+/* -------- Tabs (mobile-first card-tabs) -------- */
+.pg-tabs {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+    margin-bottom: 20px;
+}
+.pg-tab {
+    appearance: none;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-soft);
+    border-radius: 16px;
+    padding: 12px 14px;
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    text-align: left;
+    transition: background 200ms var(--ease), border-color 200ms var(--ease),
+        color 200ms var(--ease), transform 200ms var(--ease);
+    -webkit-tap-highlight-color: transparent;
+    min-height: 56px;
+}
+.pg-tab:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.03);
+    border-color: var(--border);
+}
+.pg-tab[aria-selected='true'] {
+    color: var(--text);
+    background:
+        linear-gradient(135deg, rgba(124,92,255,0.18), rgba(34,211,238,0.10));
+    border-color: rgba(124, 92, 255, 0.45);
+    box-shadow: 0 8px 28px -14px rgba(124, 92, 255, 0.55);
+}
+.pg-tab-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    display: grid;
+    place-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    color: var(--text-soft);
+    flex-shrink: 0;
+    transition: background 200ms var(--ease), color 200ms var(--ease);
+}
+.pg-tab[aria-selected='true'] .pg-tab-icon {
+    background: var(--grad-primary);
+    color: #fff;
+    border-color: transparent;
+}
+.pg-tab-text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+}
+.pg-tab-label {
+    font-weight: 600;
+    font-size: 14.5px;
+    color: inherit;
+    line-height: 1.2;
+}
+.pg-tab-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pg-tab-arrow {
+    width: 18px;
+    height: 18px;
+    color: var(--text-muted);
+    opacity: 0.7;
+    transition: transform 200ms var(--ease);
+}
+.pg-tab[aria-selected='true'] .pg-tab-arrow {
+    color: var(--brand-2);
+    opacity: 1;
+    transform: translateX(2px);
+}
+
+@media (min-width: 720px) {
+    .pg-tabs {
+        grid-template-columns: repeat(3, 1fr);
+        padding: 6px;
+        gap: 6px;
+    }
+    .pg-tab {
+        grid-template-columns: 32px 1fr;
+        grid-template-rows: auto auto;
+        padding: 12px 14px;
+        min-height: auto;
+    }
+    .pg-tab-arrow { display: none; }
+    .pg-tab-text { grid-column: 1 / -1; }
+    .pg-tab-icon { grid-row: 1 / span 2; width: 32px; height: 32px; }
+}
+
+/* -------- Card surface (around the active tab content) -------- */
+.pg-card {
+    position: relative;
+    padding: 14px;
+    border-radius: 22px;
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.008));
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+@media (min-width: 480px) {
+    .pg-card { padding: 18px; }
+}
+.pg-card::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(124,92,255,0.45), rgba(34,211,238,0.25), transparent 60%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0.7;
+}
+@media (min-width: 720px) {
+    .pg-card { padding: 24px; }
+}
+
+/* -------- Generate tab -------- */
+.pg-stack {
+    display: grid;
+    gap: 18px;
+    /* CRITICAL: grid items default to min-width: auto (= min-content). If
+       any descendant has a wide intrinsic size — e.g. the modifier-chips
+       swipe-row, whose children sum well above the viewport width — the
+       grid track grows and every other child sized at 100% inherits that
+       wider track, cascading horizontal overflow through the whole page.
+       Forcing min-width: 0 on every grid item lets overflow-x:auto rows
+       actually scroll inside the track instead of stretching it. */
+    min-width: 0;
+}
+.pg-stack > * { min-width: 0; }
+@media (max-width: 559px) {
+    /* Tighter rhythm on phones — with modifier chips, recent prompts,
+       samples, models, aspect, count, submit and the canvas all stacked,
+       18 px between each adds up to a lot of scroll. */
+    .pg-stack { gap: 14px; }
+}
+
+.pg-section-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.pg-section-label strong {
+    color: var(--text-soft);
+    font-weight: 600;
+}
+
+/* Prompt input card */
+.pg-prompt {
+    position: relative;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.012));
+    transition: border-color 220ms var(--ease), box-shadow 220ms var(--ease);
+}
+.pg-prompt:focus-within {
+    border-color: rgba(124, 92, 255, 0.55);
+    box-shadow: 0 0 0 4px rgba(124, 92, 255, 0.14);
+}
+/* Row that lays the textarea + the inline "send" FAB side by side, like a
+   chat composer. The FAB stays visually anchored to the bottom-right of the
+   prompt card so it's always within thumb-reach as the user types. */
+.pg-prompt-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr;
+}
+.pg-prompt-textarea {
+    width: 100%;
+    background: transparent;
+    border: none;
+    outline: none;
+    resize: vertical;
+    color: var(--text);
+    font-family: var(--font-body);
+    /* 16px+ avoids iOS Safari auto-zoom on focus */
+    font-size: 16px;
+    line-height: 1.6;
+    /* Right padding leaves space for the inline send FAB. */
+    padding: 16px 64px 0 16px;
+    min-height: 120px;
+    box-sizing: border-box;
+}
+.pg-send-fab {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: none;
+    background: var(--grad-primary);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    box-shadow: 0 12px 28px -8px rgba(124, 92, 255, 0.65);
+    transition: transform 180ms var(--ease), box-shadow 180ms var(--ease),
+        opacity 180ms var(--ease);
+    -webkit-tap-highlight-color: transparent;
+}
+.pg-send-fab:hover:not(:disabled) {
+    transform: translateY(-1px) scale(1.04);
+    box-shadow: 0 16px 32px -8px rgba(124, 92, 255, 0.8);
+}
+.pg-send-fab:active:not(:disabled) {
+    transform: scale(0.96);
+}
+.pg-send-fab:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    box-shadow: none;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+}
+.pg-send-fab svg { width: 18px; height: 18px; }
+.pg-send-fab-spinner {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    animation: pgSpin 0.85s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .pg-send-fab-spinner { animation: none; }
+}
+.pg-prompt-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px 12px;
+    flex-wrap: wrap;
+}
+.pg-prompt-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+.pg-prompt-counter {
+    font-variant-numeric: tabular-nums;
+}
+.pg-prompt-counter[data-near='true'] { color: #fbbf24; }
+.pg-prompt-counter[data-full='true'] { color: #fca5a5; }
+.pg-prompt-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+@media (max-width: 559px) {
+    /* With Speak + Surprise me + Enhance the action row spans the full
+       toolbar width on a new line below the meta. We force a single row
+       (no wrap) and let each pill flex to share width equally so all
+       three sit side-by-side even on a 360-px viewport. */
+    .pg-prompt-toolbar {
+        align-items: flex-start;
+    }
+    .pg-prompt-actions {
+        width: 100%;
+        flex-wrap: nowrap;
+        gap: 6px;
+        justify-content: stretch;
+    }
+    .pg-prompt-actions > .pg-iconpill {
+        flex: 1 1 0;
+        min-width: 0;
+        padding: 9px 8px;
+        gap: 4px;
+        font-size: 12px;
+        justify-content: center;
+        white-space: nowrap;
+    }
+    .pg-prompt-actions > .pg-iconpill > svg,
+    .pg-prompt-actions > .pg-iconpill > .pg-mic-pulse {
+        flex: none;
+        width: 14px;
+        height: 14px;
+    }
+    /* Speak button on phones: icon-only when idle so all three pills
+       fit on a 320-px viewport. The "Speak" label is hidden via
+       .pg-label-full → display:none below; in the listening state the
+       button naturally widens to fit the bars + "Live" affordance. */
+    .pg-prompt-actions > .pg-mic {
+        flex: 0 0 auto;
+        padding: 9px 12px;
+        aspect-ratio: 1 / 1;
+        min-height: 36px;
+    }
+    .pg-prompt-actions > .pg-mic.pg-mic--on {
+        aspect-ratio: auto;
+        padding: 9px 14px;
+    }
+    /* The "Listening…" label is ~10 chars; on a tiny phone it would
+       outgrow its column. Switch to a compact "Live" affordance while
+       still showing the pulsing bars so intent stays clear. */
+    .pg-mic--on .pg-mic-label-full { display: none; }
+}
+.pg-mic-label-short { display: none; }
+@media (max-width: 559px) {
+    .pg-mic--on .pg-mic-label-short { display: inline; }
+}
+
+/* Generic short/full label swap. Desktop reads "Surprise me", phones
+   show the more compact "Random" so all three action pills fit on a
+   single row even on a 320-px iPhone SE. */
+.pg-label-short { display: none; }
+.pg-label-full { display: inline; }
+@media (max-width: 559px) {
+    .pg-label-short { display: inline; }
+    .pg-label-full { display: none; }
+}
+.pg-iconpill {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-soft);
+    border-radius: 999px;
+    padding: 9px 14px;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 180ms var(--ease), color 180ms var(--ease),
+        border-color 180ms var(--ease), transform 180ms var(--ease);
+    -webkit-tap-highlight-color: transparent;
+    min-height: 40px;
+}
+@media (max-width: 480px) {
+    .pg-iconpill { min-height: 44px; padding: 10px 14px; }
+}
+.pg-iconpill:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text);
+    border-color: var(--border-strong);
+}
+.pg-iconpill:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.pg-iconpill--accent {
+    background: linear-gradient(135deg, rgba(124,92,255,0.16), rgba(34,211,238,0.08));
+    border-color: rgba(124, 92, 255, 0.4);
+    color: var(--text);
+}
+.pg-iconpill--accent:hover:not(:disabled) {
+    background: linear-gradient(135deg, rgba(124,92,255,0.28), rgba(34,211,238,0.16));
+    border-color: rgba(124, 92, 255, 0.6);
+}
+.pg-iconpill svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* Sample prompt cards
+   On phones we use a horizontal swipe row so 8 samples don't add ~900px of
+   scroll between the prompt and the model picker. From `min-width: 560px`
+   we snap back to a wrapping grid. */
+.pg-samples {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    /* Edge-fade so the row visually invites a swipe */
+    margin-inline: -4px;
+    padding: 4px 4px 6px;
+    mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 28px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 28px), transparent 100%);
+}
+.pg-samples::-webkit-scrollbar { display: none; }
+@media (min-width: 560px) {
+    .pg-samples {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        overflow: visible;
+        scroll-snap-type: none;
+        margin-inline: 0;
+        padding: 0;
+        mask-image: none;
+        -webkit-mask-image: none;
+    }
+}
+@media (min-width: 1024px) {
+    .pg-samples { grid-template-columns: 1fr 1fr 1fr 1fr; }
+}
+.pg-sample {
+    appearance: none;
+    text-align: left;
+    padding: 14px 14px 12px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background:
+        linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.012));
+    color: var(--text-soft);
+    cursor: pointer;
+    display: grid;
+    gap: 8px;
+    transition: transform 220ms var(--ease), border-color 220ms var(--ease),
+        background 220ms var(--ease), box-shadow 220ms var(--ease);
+    -webkit-tap-highlight-color: transparent;
+    min-height: 110px;
+    /* Phone (swipe-row) sizing */
+    flex: 0 0 78%;
+    max-width: 280px;
+    scroll-snap-align: start;
+}
+@media (min-width: 560px) {
+    .pg-sample {
+        flex: initial;
+        max-width: none;
+        scroll-snap-align: none;
+    }
+}
+.pg-sample:hover:not(:disabled) {
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+    background:
+        linear-gradient(180deg, rgba(124,92,255,0.08), rgba(34,211,238,0.04));
+    box-shadow: 0 14px 30px -18px rgba(124, 92, 255, 0.55);
+}
+.pg-sample:disabled { opacity: 0.5; cursor: not-allowed; }
+.pg-sample-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.pg-sample-emoji {
+    font-size: 18px;
+    line-height: 1;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+}
+.pg-sample-tag {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--brand-2);
+}
+.pg-sample-text {
+    color: var(--text-soft);
+    font-size: 13px;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Model cards
+   Phones get the same swipe-row treatment as sample cards so users don't
+   have to lose half their screen to a 2×2 grid. From `min-width: 560px`
+   we snap back to a wrapping grid (2 cols → 4 cols on tablet+). */
+.pg-models {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-inline: -4px;
+    padding: 4px 4px 6px;
+    mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 28px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 28px), transparent 100%);
+}
+.pg-models::-webkit-scrollbar { display: none; }
+@media (min-width: 560px) {
+    .pg-models {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        overflow: visible;
+        scroll-snap-type: none;
+        margin-inline: 0;
+        padding: 0;
+        mask-image: none;
+        -webkit-mask-image: none;
+    }
+}
+@media (min-width: 720px) {
+    .pg-models { grid-template-columns: repeat(4, 1fr); }
+}
+.pg-model {
+    appearance: none;
+    cursor: pointer;
+    display: grid;
+    gap: 4px;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.025);
+    color: var(--text-soft);
+    text-align: left;
+    transition: border-color 200ms var(--ease), background 200ms var(--ease),
+        transform 200ms var(--ease);
+    min-height: 76px;
+    -webkit-tap-highlight-color: transparent;
+    /* Phone (swipe-row) sizing — peek the next card */
+    flex: 0 0 56%;
+    max-width: 220px;
+    scroll-snap-align: start;
+}
+@media (min-width: 560px) {
+    .pg-model {
+        flex: initial;
+        max-width: none;
+        scroll-snap-align: none;
+    }
+}
+.pg-model:hover:not(:disabled) {
+    border-color: var(--border-strong);
+    background: rgba(255, 255, 255, 0.045);
+}
+.pg-model[aria-checked='true'] {
+    border-color: rgba(124, 92, 255, 0.55);
+    background:
+        linear-gradient(135deg, rgba(124,92,255,0.16), rgba(34,211,238,0.08));
+    color: var(--text);
+}
+.pg-model:disabled { opacity: 0.5; cursor: not-allowed; }
+.pg-model-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: inherit;
+    line-height: 1.2;
+}
+.pg-model-tag {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+.pg-model-badge {
+    align-self: flex-start;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 3px 6px;
+    border-radius: 999px;
+    background: rgba(52, 211, 153, 0.14);
+    color: #6ee7b7;
+    border: 1px solid rgba(52, 211, 153, 0.32);
+}
+
+/* Count toggle — full-width on phones, inline on tablet+ */
+.pg-segmented {
+    display: flex;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    gap: 2px;
+    width: 100%;
+}
+@media (min-width: 560px) {
+    .pg-segmented {
+        display: inline-flex;
+        width: auto;
+    }
+}
+.pg-segmented-opt {
+    appearance: none;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: transparent;
+    /* Brighter inactive text so the option label is legible against the
+       dark track. The active state still wins via gradient + bold weight. */
+    color: var(--text);
+    opacity: 0.7;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 180ms var(--ease);
+    min-height: 40px;
+    flex: 1;
+    -webkit-tap-highlight-color: transparent;
+}
+.pg-segmented-opt:hover:not(:disabled):not([aria-pressed='true']) {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.04);
+}
+@media (min-width: 560px) {
+    .pg-segmented-opt { flex: initial; min-height: 36px; }
+}
+.pg-segmented-opt[aria-pressed='true'] {
+    background: var(--grad-primary);
+    color: #fff;
+    opacity: 1;
+    font-weight: 600;
+    box-shadow: 0 4px 14px rgba(124, 92, 255, 0.35);
+}
+.pg-segmented-opt:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Submit row */
+.pg-submit-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    align-items: center;
+}
+@media (min-width: 640px) {
+    .pg-submit-row {
+        grid-template-columns: auto 1fr;
+        align-items: end;
+    }
+}
+.pg-submit {
+    appearance: none;
+    border: none;
+    padding: 14px 22px;
+    border-radius: 14px;
+    background: var(--grad-primary);
+    color: #fff;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: transform 200ms var(--ease), box-shadow 200ms var(--ease);
+    box-shadow: 0 14px 36px -12px rgba(124, 92, 255, 0.7);
+    width: 100%;
+    min-height: 52px;
+    -webkit-tap-highlight-color: transparent;
+}
+@media (min-width: 640px) {
+    .pg-submit { width: auto; align-self: stretch; min-width: 220px; }
+}
+.pg-submit:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 40px -10px rgba(124, 92, 255, 0.85);
+}
+.pg-submit:active:not(:disabled) { transform: translateY(0); }
+.pg-submit:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    box-shadow: none;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-muted);
+}
+.pg-submit svg { width: 18px; height: 18px; }
+.pg-submit-hint {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    line-height: 1.55;
+}
+.pg-submit-hint kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+/* Hide the desktop-only ⌘↵ keyboard shortcut copy on phones — it
+   wastes a line and isn't relevant. The compact note stays. */
+@media (max-width: 559px) {
+    .pg-submit-hint .pg-hint-desktop { display: none; }
+    .pg-submit-hint { font-size: 12px; }
+}
+
+/* Result canvas */
+.pg-canvas {
+    position: relative;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background:
+        linear-gradient(135deg, rgba(124,92,255,0.06), rgba(34,211,238,0.04));
+    padding: 22px;
+    min-height: 320px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+}
+.pg-canvas-empty {
+    text-align: center;
+    max-width: 460px;
+    display: grid;
+    gap: 10px;
+    justify-items: center;
+}
+.pg-canvas-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+    background: var(--grad-primary);
+    color: #fff;
+    box-shadow: 0 12px 36px -8px rgba(124, 92, 255, 0.7);
+}
+.pg-canvas-icon svg { width: 28px; height: 28px; }
+.pg-canvas-title {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    color: var(--text);
+    margin: 0;
+}
+.pg-canvas-body {
+    color: var(--text-muted);
+    font-size: 13.5px;
+    line-height: 1.55;
+    margin: 0;
+}
+@media (max-width: 559px) {
+    /* Mobile: shrink the empty canvas so it doesn't dominate the viewport
+       once the user has already picked a sample and is just waiting to
+       generate. Padding, icon and copy all step down a level. */
+    .pg-canvas {
+        padding: 18px 16px;
+        min-height: 240px;
+        border-radius: 14px;
+    }
+    .pg-canvas-icon { width: 44px; height: 44px; border-radius: 12px; }
+    .pg-canvas-icon svg { width: 22px; height: 22px; }
+    .pg-canvas-title { font-size: 1rem; }
+    .pg-canvas-body { font-size: 12.5px; line-height: 1.5; }
+    .pg-canvas-empty { gap: 8px; }
+}
+
+/* Generation skeleton (shimmer) */
+.pg-skeleton {
+    display: grid;
+    gap: 12px;
+    width: 100%;
+}
+.pg-skeleton-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+@media (min-width: 480px) {
+    .pg-skeleton-grid--multi { grid-template-columns: 1fr 1fr; }
+}
+.pg-skeleton-tile {
+    aspect-ratio: 1 / 1;
+    border-radius: 14px;
+    background:
+        linear-gradient(110deg,
+            rgba(255,255,255,0.04) 8%,
+            rgba(255,255,255,0.10) 18%,
+            rgba(255,255,255,0.04) 33%);
+    background-size: 200% 100%;
+    border: 1px solid var(--border);
+    animation: pgShimmer 1.4s linear infinite;
+    position: relative;
+    overflow: hidden;
+}
+.pg-skeleton-tile::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(180px 120px at 30% 30%, rgba(124,92,255,0.25), transparent 60%),
+        radial-gradient(160px 110px at 80% 70%, rgba(34,211,238,0.22), transparent 60%);
+    mix-blend-mode: screen;
+    opacity: 0.7;
+    animation: pgPan 6s ease-in-out infinite alternate;
+}
+@keyframes pgShimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+@keyframes pgPan {
+    0%   { transform: translate3d(0,0,0); }
+    100% { transform: translate3d(-6%, 6%, 0); }
+}
+.pg-skeleton-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-muted);
+    font-size: 13.5px;
+}
+.pg-skeleton-status .pg-spinner-ring {
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255, 255, 255, 0.16);
+    border-top-color: var(--brand-1);
+    border-radius: 999px;
+    animation: pgSpin 0.85s linear infinite;
+    flex-shrink: 0;
+}
+@keyframes pgSpin {
+    to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .pg-skeleton-tile,
+    .pg-skeleton-tile::after,
+    .pg-skeleton-status .pg-spinner-ring { animation: none; }
+}
+
+/* Result media */
+.pg-result {
+    width: 100%;
+    display: grid;
+    gap: 14px;
+}
+.pg-result-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+.pg-result-grid--multi { grid-template-columns: 1fr 1fr; }
+.pg-result-tile {
+    position: relative;
+    display: block;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    background: rgba(0, 0, 0, 0.2);
+    transition: transform 200ms var(--ease), border-color 200ms var(--ease);
+    aspect-ratio: 1 / 1;
+}
+.pg-result-tile:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+}
+.pg-result-tile img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+}
+.pg-result-tile--single {
+    aspect-ratio: auto;
+}
+.pg-result-tile--single img {
+    height: auto;
+    object-fit: contain;
+}
+.pg-result-tile-overlay {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 10px 12px;
+    background: linear-gradient(180deg, transparent, rgba(0,0,0,0.6));
+    color: #fff;
+    font-size: 11.5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 200ms var(--ease);
+    pointer-events: none;
+}
+.pg-result-tile:hover .pg-result-tile-overlay,
+.pg-result-tile:focus-visible .pg-result-tile-overlay {
+    opacity: 1;
+}
+@media (hover: none) {
+    .pg-result-tile-overlay { opacity: 1; }
+}
+
+.pg-result-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+.pg-result-meta strong { color: var(--text-soft); font-weight: 600; }
+.pg-result-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* Error state */
+.pg-error {
+    text-align: center;
+    max-width: 460px;
+    display: grid;
+    gap: 8px;
+    justify-items: center;
+}
+.pg-error-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    color: #fca5a5;
+    display: grid;
+    place-items: center;
+}
+.pg-error-icon svg { width: 22px; height: 22px; }
+.pg-error-title {
+    color: #fca5a5;
+    font-weight: 600;
+    margin: 0;
+}
+.pg-error-body {
+    color: var(--text-muted);
+    font-size: 13.5px;
+    line-height: 1.55;
+    margin: 0;
+}
+
+/* Footnote */
+.pg-foot {
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.6;
+    text-align: center;
+}
+.pg-foot strong { color: var(--text-soft); font-weight: 600; }
+
+/* -------- Edit tab (dropzone polish) -------- */
+.pg-dropzone {
+    appearance: none;
+    border: 1.5px dashed var(--border-strong);
+    background:
+        radial-gradient(420px 220px at 50% 20%, rgba(124,92,255,0.08), transparent 70%),
+        rgba(255, 255, 255, 0.025);
+    border-radius: 18px;
+    padding: 28px 20px;
+    color: var(--text-soft);
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 200ms var(--ease), background 200ms var(--ease),
+        transform 200ms var(--ease);
+    display: grid;
+    gap: 12px;
+    justify-items: center;
+    width: 100%;
+    -webkit-tap-highlight-color: transparent;
+}
+.pg-dropzone:hover:not(:disabled),
+.pg-dropzone[data-hover='true'] {
+    border-color: rgba(124, 92, 255, 0.6);
+    background:
+        radial-gradient(420px 220px at 50% 20%, rgba(124,92,255,0.18), transparent 70%),
+        rgba(124, 92, 255, 0.04);
+    transform: scale(1.005);
+}
+.pg-dropzone:disabled { opacity: 0.6; cursor: not-allowed; }
+.pg-dropzone-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    background: var(--grad-primary);
+    color: #fff;
+    display: grid;
+    place-items: center;
+    box-shadow: 0 14px 36px -10px rgba(124, 92, 255, 0.65);
+}
+.pg-dropzone-icon svg { width: 24px; height: 24px; }
+.pg-dropzone-title {
+    color: var(--text);
+    font-weight: 600;
+    font-size: 15px;
+    margin: 0;
+}
+.pg-dropzone-hint {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    line-height: 1.5;
+    margin: 0;
+    max-width: 360px;
+}
+.pg-dropzone-formats {
+    display: inline-flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.pg-dropzone-formats span {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    color: var(--text-soft);
+}
+
+/* Sub-mode toggle (filter / AI) */
+.pg-submode {
+    display: inline-flex;
+    padding: 4px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    align-self: start;
+}
+.pg-submode-opt {
+    appearance: none;
+    border: none;
+    padding: 9px 16px;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-soft);
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 200ms var(--ease);
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    -webkit-tap-highlight-color: transparent;
+}
+.pg-submode-opt[aria-pressed='true'] {
+    background: var(--grad-primary);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 4px 14px rgba(124, 92, 255, 0.35);
+}
+.pg-submode-opt:disabled { opacity: 0.55; cursor: not-allowed; }
+.pg-submode-opt small {
+    font-size: 10.5px;
+    font-weight: 500;
+    opacity: 0.85;
+}
+
+/* Style chips */
+.pg-styles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.pg-style {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-soft);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    cursor: pointer;
+    transition: all 180ms var(--ease);
+    -webkit-tap-highlight-color: transparent;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.pg-style:hover:not(:disabled) {
+    background: rgba(124, 92, 255, 0.10);
+    color: var(--text);
+    border-color: rgba(124, 92, 255, 0.4);
+}
+.pg-style:disabled { opacity: 0.5; cursor: not-allowed; }
+.pg-style-emoji { line-height: 1; }
+
+
+/* =============================================================
+   Creative additions: prompt quality, modifiers, recent, lightbox
+   ============================================================= */
+
+/* -------- Prompt quality pill -------- */
+/* A tiny, low-effort prompt-craft coach. Sits in the toolbar next to
+   the character counter. Driven by a `data-level` attribute so we can
+   theme the three states without per-class duplication. */
+.pg-quality {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border);
+    color: var(--text-soft);
+    cursor: help;
+    user-select: none;
+    transition: transform 180ms var(--ease);
+}
+.pg-quality:hover { transform: translateY(-1px); }
+.pg-quality-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: currentColor;
+    flex: none;
+    box-shadow: 0 0 0 0 currentColor;
+    animation: pgQualityPulse 2.4s ease-out infinite;
+}
+@keyframes pgQualityPulse {
+    0%   { box-shadow: 0 0 0 0 currentColor; }
+    70%  { box-shadow: 0 0 0 6px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .pg-quality-dot { animation: none; }
+}
+.pg-quality[data-level='vague'] {
+    color: #fbbf24;
+    border-color: rgba(251, 191, 36, 0.35);
+    background: rgba(251, 191, 36, 0.08);
+}
+.pg-quality[data-level='good'] {
+    color: #34d399;
+    border-color: rgba(52, 211, 153, 0.35);
+    background: rgba(52, 211, 153, 0.08);
+}
+.pg-quality[data-level='vivid'] {
+    color: #fff;
+    border-color: rgba(124, 92, 255, 0.45);
+    background: linear-gradient(135deg, rgba(124, 92, 255, 0.22), rgba(34, 211, 238, 0.18));
+}
+.pg-quality[data-level='vivid'] .pg-quality-dot {
+    background: linear-gradient(135deg, #c4b5fd, #67e8f9);
+}
+
+/* -------- Style modifier chips -------- */
+/* Quick-tap "+ vibe" buttons that append a modifier to the current prompt.
+   Only render once the user has typed something — empty-state would be
+   noise. Wraps on desktop, becomes a swipe-row on phones to save scroll. */
+.pg-mod-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: -6px;
+    min-width: 0;
+}
+.pg-mod-label {
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--text-muted);
+    flex: none;
+    white-space: nowrap;
+}
+.pg-modifiers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex: 1 1 0;
+    min-width: 0;
+}
+.pg-modifier {
+    appearance: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.025);
+    color: var(--text-soft);
+    font-size: 12.5px;
+    font-weight: 500;
+    transition: transform 180ms var(--ease), border-color 180ms var(--ease),
+        background 180ms var(--ease), color 180ms var(--ease);
+    -webkit-tap-highlight-color: transparent;
+    min-height: 32px;
+}
+.pg-modifier:hover:not(:disabled) {
+    color: var(--text);
+    border-color: rgba(124, 92, 255, 0.45);
+    background: rgba(124, 92, 255, 0.10);
+    transform: translateY(-1px);
+}
+.pg-modifier:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+.pg-modifier[aria-pressed='true'] {
+    background: linear-gradient(135deg, rgba(124, 92, 255, 0.18), rgba(34, 211, 238, 0.12));
+    border-color: rgba(124, 92, 255, 0.55);
+    color: var(--text);
+    opacity: 1;
+}
+.pg-modifier[aria-pressed='true']::after {
+    content: '✓';
+    font-size: 11px;
+    color: #67e8f9;
+    margin-left: 2px;
+}
+@media (max-width: 559px) {
+    .pg-mod-row { flex-direction: column; align-items: stretch; gap: 8px; }
+    .pg-mod-label { font-size: 11px; }
+    /* Swipe-row on phones so we don't bury the samples below a 4-row wrap. */
+    .pg-modifiers {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+        margin-inline: -4px;
+        padding: 4px 4px 6px;
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+        mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 28px), transparent 100%);
+        -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 28px), transparent 100%);
+    }
+    .pg-modifiers::-webkit-scrollbar { display: none; }
+    .pg-modifier { flex: 0 0 auto; scroll-snap-align: start; min-height: 36px; }
+}
+
+/* -------- Recent prompts swipe row -------- */
+/* Persists across sessions via localStorage so users come back to find
+   their work. Compact on mobile (swipe row), grid-ish on tablet+. */
+.pg-recent {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin-inline: -4px;
+    padding: 4px 4px 6px;
+    mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 28px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14px, #000 calc(100% - 28px), transparent 100%);
+}
+.pg-recent::-webkit-scrollbar { display: none; }
+.pg-recent-card {
+    position: relative;
+    flex: 0 0 78%;
+    max-width: 320px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0));
+    scroll-snap-align: start;
+    transition: border-color 200ms var(--ease), transform 200ms var(--ease);
+}
+.pg-recent-card:hover {
+    border-color: rgba(124, 92, 255, 0.45);
+    transform: translateY(-1px);
+}
+.pg-recent-load {
+    appearance: none;
+    cursor: pointer;
+    display: grid;
+    gap: 6px;
+    padding: 12px 36px 12px 14px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    width: 100%;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 76px;
+    border-radius: 14px;
+}
+.pg-recent-load:disabled { opacity: 0.6; cursor: not-allowed; }
+.pg-recent-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--text-muted);
+}
+.pg-recent-model {
+    color: #c4b5fd;
+    font-weight: 600;
+}
+.pg-recent-time {
+    color: var(--text-muted);
+}
+.pg-recent-text {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-soft);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.pg-recent-card:hover .pg-recent-text { color: var(--text); }
+.pg-recent-remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(0, 0, 0, 0.35);
+    color: var(--text-soft);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 180ms var(--ease), color 180ms var(--ease), border-color 180ms var(--ease);
+}
+.pg-recent-remove svg { width: 12px; height: 12px; }
+.pg-recent-card:hover .pg-recent-remove,
+.pg-recent-card:focus-within .pg-recent-remove {
+    opacity: 1;
+}
+.pg-recent-remove:hover {
+    color: #f87171;
+    border-color: rgba(248, 113, 113, 0.45);
+}
+@media (min-width: 720px) {
+    .pg-recent {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        overflow: visible;
+        scroll-snap-type: none;
+        margin-inline: 0;
+        padding: 0;
+        mask-image: none;
+        -webkit-mask-image: none;
+    }
+    .pg-recent-card { flex: initial; max-width: none; scroll-snap-align: none; }
+    .pg-recent-remove { opacity: 1; }
+}
+
+/* -------- Lightbox -------- */
+/* Fullscreen viewer with download + share. Backdrop blurs the page;
+   content is centered with safe-area-aware padding so iOS notches don't
+   eat the close button or actions. */
+.pg-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
+        env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+    background: radial-gradient(60% 60% at 50% 50%, rgba(15, 13, 30, 0.85), rgba(5, 4, 12, 0.96));
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    animation: pgLightboxIn 220ms var(--ease);
+}
+@keyframes pgLightboxIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .pg-lightbox { animation: none; }
+}
+.pg-lightbox-panel {
+    position: relative;
+    width: min(94vw, 1100px);
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+}
+.pg-lightbox-close {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 180ms var(--ease), background 180ms var(--ease);
+    z-index: 2;
+}
+.pg-lightbox-close:hover { background: rgba(124, 92, 255, 0.35); transform: rotate(90deg); }
+.pg-lightbox-close svg { width: 18px; height: 18px; }
+.pg-lightbox-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 200ms var(--ease), background 200ms var(--ease);
+    z-index: 2;
+}
+.pg-lightbox-nav:hover { background: rgba(124, 92, 255, 0.35); }
+.pg-lightbox-nav--prev { left: 4px; }
+.pg-lightbox-nav--next { right: 4px; }
+.pg-lightbox-nav svg { width: 20px; height: 20px; }
+.pg-lightbox-nav--prev:hover { transform: translateY(-50%) translateX(-2px); }
+.pg-lightbox-nav--next:hover { transform: translateY(-50%) translateX(2px); }
+.pg-lightbox-imgwrap {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 18px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border);
+    box-shadow: 0 30px 80px -20px rgba(124, 92, 255, 0.4);
+}
+.pg-lightbox-img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    display: block;
+    object-fit: contain;
+}
+.pg-lightbox-foot {
+    flex: none;
+    display: grid;
+    gap: 10px;
+    padding: 4px 6px;
+}
+.pg-lightbox-prompt {
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--text-soft);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.pg-lightbox-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.pg-lightbox-meta {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-right: auto;
+    font-variant-numeric: tabular-nums;
+}
+@media (max-width: 559px) {
+    .pg-lightbox-panel { padding: 12px 8px; gap: 8px; }
+    .pg-lightbox-close { top: -4px; right: -4px; }
+    .pg-lightbox-nav { width: 38px; height: 38px; }
+    .pg-lightbox-prompt { font-size: 12.5px; -webkit-line-clamp: 2; }
+    .pg-lightbox-actions {
+        flex-direction: row;
+        justify-content: space-between;
+    }
+    .pg-lightbox-meta { width: 100%; margin-right: 0; }
+}
+
+
+/* -------- Aspect-ratio picker -------- */
+/* Three card buttons with a tiny visual ratio thumbnail so users can read
+   the shape at a glance without parsing copy. Roving radio for keyboard
+   nav matches the existing model picker.
+   `minmax(0, 1fr)` is essential — the default `1fr` is `minmax(auto, 1fr)`,
+   which refuses to shrink below the content's min-content width and was
+   causing horizontal overflow on narrow phones. */
+.pg-aspects {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+.pg-aspect {
+    appearance: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.025);
+    color: var(--text-soft);
+    text-align: left;
+    transition: border-color 200ms var(--ease), background 200ms var(--ease),
+        transform 200ms var(--ease);
+    -webkit-tap-highlight-color: transparent;
+    min-height: 76px;
+    min-width: 0;
+}
+.pg-aspect:hover:not(:disabled) {
+    border-color: rgba(124, 92, 255, 0.45);
+    background: rgba(124, 92, 255, 0.08);
+    transform: translateY(-1px);
+}
+.pg-aspect:disabled { opacity: 0.55; cursor: not-allowed; }
+.pg-aspect[aria-checked='true'] {
+    border-color: rgba(124, 92, 255, 0.7);
+    background: linear-gradient(180deg, rgba(124, 92, 255, 0.12), rgba(34, 211, 238, 0.06));
+    color: var(--text);
+}
+.pg-aspect-shape {
+    flex: none;
+    display: block;
+    border: 1.5px solid currentColor;
+    border-radius: 4px;
+    background:
+        linear-gradient(135deg, rgba(124, 92, 255, 0.35), rgba(34, 211, 238, 0.25));
+    opacity: 0.9;
+    transition: opacity 180ms var(--ease);
+}
+.pg-aspect:hover .pg-aspect-shape { opacity: 1; }
+.pg-aspect-shape--square { width: 28px; height: 28px; }
+.pg-aspect-shape--portrait { width: 22px; height: 32px; }
+.pg-aspect-shape--landscape { width: 36px; height: 22px; }
+.pg-aspect-meta {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+.pg-aspect-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pg-aspect-hint {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+@media (max-width: 559px) {
+    /* On phones: shape sits above the labels (vertical stack), tighter
+       paddings, smaller fonts, and the hint can wrap to 2 lines so each
+       option fits the 33% column width without ellipsizing the label. */
+    .pg-aspects { gap: 6px; }
+    .pg-aspect {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+        padding: 10px 8px;
+        min-height: 92px;
+    }
+    .pg-aspect-shape--square { width: 22px; height: 22px; }
+    .pg-aspect-shape--portrait { width: 18px; height: 26px; }
+    .pg-aspect-shape--landscape { width: 28px; height: 18px; }
+    .pg-aspect-name { font-size: 12.5px; }
+    .pg-aspect-hint {
+        font-size: 10.5px;
+        line-height: 1.3;
+        white-space: normal;
+        text-overflow: clip;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+}
+/* Extra-small phones (≤360 px) — drop the shape thumbnail so the
+   labels never have to compete for space. */
+@media (max-width: 360px) {
+    .pg-aspect-shape { display: none; }
+    .pg-aspect { min-height: 72px; }
+}
+
+
+/* -------- Voice-to-prompt mic -------- */
+/* The Speak button is rendered as a normal `pg-iconpill` so it inherits
+   sizing & focus rings; the `pg-mic--on` modifier swaps to a recording
+   appearance with an animated audio-bar indicator. */
+.pg-mic { transition: all 200ms var(--ease); }
+.pg-mic--on {
+    color: #fff;
+    background: linear-gradient(135deg, rgba(244, 63, 94, 0.85), rgba(168, 85, 247, 0.85));
+    border-color: rgba(244, 63, 94, 0.55);
+    box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.18);
+}
+.pg-mic--on:hover { transform: translateY(-1px); }
+
+/* Three little bars dancing — much more "voice" than a static icon. */
+.pg-mic-pulse {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 14px;
+    width: 14px;
+}
+.pg-mic-pulse > span {
+    flex: 1;
+    background: currentColor;
+    border-radius: 1.5px;
+    animation: pgMicBar 900ms ease-in-out infinite;
+    transform-origin: bottom center;
+}
+.pg-mic-pulse > span:nth-child(1) { animation-delay: -450ms; }
+.pg-mic-pulse > span:nth-child(2) { animation-delay: -200ms; }
+.pg-mic-pulse > span:nth-child(3) { animation-delay: -700ms; }
+@keyframes pgMicBar {
+    0%, 100% { transform: scaleY(0.35); }
+    50%      { transform: scaleY(1);    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .pg-mic-pulse > span { animation: none; transform: scaleY(0.7); }
+}
+
+/* Voice status / error strip below the toolbar */
+.pg-voice-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 12.5px;
+    line-height: 1.4;
+    background: linear-gradient(135deg, rgba(244, 63, 94, 0.10), rgba(168, 85, 247, 0.08));
+    border: 1px solid rgba(244, 63, 94, 0.25);
+    color: var(--text-soft);
+}
+.pg-voice-status--error {
+    background: rgba(248, 113, 113, 0.10);
+    border-color: rgba(248, 113, 113, 0.35);
+    color: #fecaca;
+}
+.pg-voice-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: #f43f5e;
+    flex: none;
+    box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.6);
+    animation: pgVoicePulse 1.6s ease-out infinite;
+}
+@keyframes pgVoicePulse {
+    0%   { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.55); }
+    70%  { box-shadow: 0 0 0 8px rgba(244, 63, 94, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .pg-voice-dot { animation: none; }
+}

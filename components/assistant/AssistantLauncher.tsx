@@ -1,6 +1,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
+import { usePathname } from 'next/navigation';
 import { useAssistant } from './AssistantContext';
 
 /**
@@ -48,8 +49,15 @@ function readMacServerSnapshot(): boolean {
 
 export function AssistantLauncher() {
   const { isOpen, open } = useAssistant();
+  const pathname = usePathname();
   const seen = useSyncExternalStore(subscribeSeen, readSeenSnapshot, readSeenServerSnapshot);
   const isMac = useSyncExternalStore(noopSubscribe, readMacSnapshot, readMacServerSnapshot);
+
+  // Hide the floating launcher on `/playground`: that page already exposes a
+  // dedicated chat tab + "Generate" send button, and on phones the FAB
+  // overlapped the bottom-right corner of the result canvas. Users can still
+  // open the global drawer with ⌘K / Ctrl+K.
+  if (pathname === '/playground') return null;
 
   function handleClick() {
     try {

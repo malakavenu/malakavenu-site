@@ -11,9 +11,14 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <Suspense fallback={null}>
         <AttributionBoot />
       </Suspense>
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
       <ScrollProgress />
       <Header />
-      <main>{children}</main>
+      <main id="main-content" tabIndex={-1}>
+        {children}
+      </main>
       <Footer />
       <MobileDock />
     </>

@@ -1,0 +1,4 @@
+.artifacts/
+.artifacts-mobile/
+test-results/
+playwright-report/

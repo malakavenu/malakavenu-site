@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { track } from '@/lib/track';
 import { FilterStudio } from './FilterStudio';
 import { Spinner } from './Spinner';
-import { chipStyle, subtleNote, surfaceStyle, textareaStyle } from './playgroundStyles';
+import { subtleNote, surfaceStyle, textareaStyle } from './playgroundStyles';
 
 /**
  * EditTab — image-to-image (Kontext) editing.
@@ -18,14 +18,14 @@ import { chipStyle, subtleNote, surfaceStyle, textareaStyle } from './playground
  */
 
 const STYLES = [
-  { label: 'Studio Ghibli', prompt: 'Restyle as a Studio Ghibli illustration with soft watercolor textures and warm light' },
-  { label: 'Anime', prompt: 'Restyle as a high-quality modern anime illustration, clean line art, vivid colors' },
-  { label: 'Cyberpunk neon', prompt: 'Add cinematic cyberpunk neon lighting, magenta and cyan accents, light rain reflections' },
-  { label: 'Watercolor', prompt: 'Restyle as a delicate hand-painted watercolor with visible paper texture and soft edges' },
-  { label: 'Pixel art', prompt: 'Restyle as detailed 32-bit pixel art with limited palette and sharp pixel edges' },
-  { label: 'Comic book', prompt: 'Restyle as a Western comic book panel with bold ink outlines and halftone shading' },
-  { label: 'Pencil sketch', prompt: 'Convert to a detailed graphite pencil sketch on textured paper' },
-  { label: 'Polaroid', prompt: 'Make this look like a slightly faded 1970s Polaroid photograph with warm tones' },
+  { emoji: '🌿', label: 'Studio Ghibli', prompt: 'Restyle as a Studio Ghibli illustration with soft watercolor textures and warm light' },
+  { emoji: '🎌', label: 'Anime', prompt: 'Restyle as a high-quality modern anime illustration, clean line art, vivid colors' },
+  { emoji: '🌃', label: 'Cyberpunk neon', prompt: 'Add cinematic cyberpunk neon lighting, magenta and cyan accents, light rain reflections' },
+  { emoji: '🎨', label: 'Watercolor', prompt: 'Restyle as a delicate hand-painted watercolor with visible paper texture and soft edges' },
+  { emoji: '👾', label: 'Pixel art', prompt: 'Restyle as detailed 32-bit pixel art with limited palette and sharp pixel edges' },
+  { emoji: '💥', label: 'Comic book', prompt: 'Restyle as a Western comic book panel with bold ink outlines and halftone shading' },
+  { emoji: '✏️', label: 'Pencil sketch', prompt: 'Convert to a detailed graphite pencil sketch on textured paper' },
+  { emoji: '📸', label: 'Polaroid', prompt: 'Make this look like a slightly faded 1970s Polaroid photograph with warm tones' },
 ];
 
 const MAX_PROMPT = 500;
@@ -44,7 +44,17 @@ type Result = {
   filename: string;
 };
 
-export function EditTab() {
+type EditTabProps = {
+  /**
+   * Optional file to load on mount (used by the Generate → Edit pipe).
+   * Once consumed, EditTab calls onInitialConsumed() so the parent can
+   * clear it and avoid re-loading on subsequent mounts.
+   */
+  initialFile?: File | null;
+  onInitialConsumed?: () => void;
+};
+
+export function EditTab({ initialFile, onInitialConsumed }: EditTabProps = {}) {
   const [file, setFile] = useState<File | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
@@ -55,6 +65,7 @@ export function EditTab() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const objectUrlsRef = useRef<string[]>([]);
+  const initialConsumedRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -73,23 +84,36 @@ export function EditTab() {
     objectUrlsRef.current = [];
   }
 
-  function pickFile(input: File | null | undefined) {
-    if (!input) return;
-    if (input.size > 15 * 1024 * 1024) {
-      setError('Source image is over 15 MB. Try a smaller one.');
-      return;
-    }
-    revokeAllObjectUrls();
-    setError(null);
-    setResult(null);
-    setFile(input);
-    setOriginalUrl(pushObjectUrl(URL.createObjectURL(input)));
-    track('playground_edit_upload', {
-      bytes: input.size,
-      type: input.type || 'unknown',
-      mode: editMode,
-    });
-  }
+  const pickFile = useCallback(
+    (input: File | null | undefined, source: 'upload' | 'pipe' = 'upload') => {
+      if (!input) return;
+      if (input.size > 15 * 1024 * 1024) {
+        setError('Source image is over 15 MB. Try a smaller one.');
+        return;
+      }
+      revokeAllObjectUrls();
+      setError(null);
+      setResult(null);
+      setFile(input);
+      setOriginalUrl(pushObjectUrl(URL.createObjectURL(input)));
+      track('playground_edit_upload', {
+        bytes: input.size,
+        type: input.type || 'unknown',
+        source,
+      });
+    },
+    [],
+  );
+
+  // Cross-tab pipe: when an initialFile prop arrives (because the user
+  // clicked "Edit this" in the Generate tab), load it once and tell the
+  // parent we consumed it so it can clear its state.
+  useEffect(() => {
+    if (!initialFile || initialConsumedRef.current) return;
+    initialConsumedRef.current = true;
+    pickFile(initialFile, 'pipe');
+    onInitialConsumed?.();
+  }, [initialFile, pickFile, onInitialConsumed]);
 
   async function compressInBrowser(input: File): Promise<Blob> {
     const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -255,15 +279,18 @@ export function EditTab() {
           />
         </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <div className="pg-styles">
           {STYLES.map((s) => (
             <button
               key={s.label}
               type="button"
               onClick={() => setPrompt(s.prompt.slice(0, MAX_PROMPT))}
               disabled={busy}
-              style={chipStyle}
+              className="pg-style"
             >
+              <span className="pg-style-emoji" aria-hidden="true">
+                {s.emoji}
+              </span>
               {s.label}
             </button>
           ))}
@@ -334,43 +361,21 @@ function SubModeToggle({
     { id: 'ai', label: 'AI restyle', hint: 'Generative AI · slower' },
   ];
   return (
-    <div
-      role="tablist"
-      aria-label="Edit mode"
-      style={{
-        display: 'inline-flex',
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border)',
-        borderRadius: 999,
-        padding: 4,
-        gap: 4,
-        alignSelf: 'start',
-      }}
-    >
+    <div className="pg-submode" role="group" aria-label="Edit mode">
       {options.map((opt) => {
         const active = mode === opt.id;
         return (
           <button
             key={opt.id}
             type="button"
-            role="tab"
-            aria-selected={active}
+            aria-pressed={active}
             onClick={() => onChange(opt.id)}
             disabled={disabled}
             title={opt.hint}
-            style={{
-              padding: '7px 14px',
-              border: 'none',
-              borderRadius: 999,
-              background: active ? 'var(--grad-primary)' : 'transparent',
-              color: active ? '#fff' : 'var(--text-soft)',
-              fontWeight: active ? 600 : 500,
-              fontSize: 12.5,
-              cursor: disabled ? 'not-allowed' : 'pointer',
-              transition: 'all 200ms var(--ease)',
-            }}
+            className="pg-submode-opt"
           >
             {opt.label}
+            <small> · {opt.hint.split(' · ')[0]}</small>
           </button>
         );
       })}
@@ -466,25 +471,28 @@ function Dropzone({
           if (f) onPick(f);
         }}
         disabled={disabled}
-        style={{
-          display: 'grid',
-          placeItems: 'center',
-          padding: 32,
-          background: hover ? 'var(--bg-card-hover)' : 'var(--bg-card)',
-          border: `1px dashed ${hover ? 'var(--brand-1)' : 'var(--border-strong)'}`,
-          borderRadius: 'var(--radius-md)',
-          color: 'var(--text-soft)',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          transition: 'all 200ms var(--ease)',
-          textAlign: 'center',
-          minHeight: 140,
-        }}
+        className="pg-dropzone"
+        data-hover={hover || undefined}
       >
-        <div style={{ display: 'grid', gap: 6 }}>
-          <strong style={{ color: 'var(--text)' }}>Click to upload or drag &amp; drop</strong>
-          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-            JPEG, PNG, or WebP · auto-compressed to 1280 px before upload
-          </span>
+        <span className="pg-dropzone-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round" focusable="false">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+        </span>
+        <div>
+          <p className="pg-dropzone-title">Tap to upload or drag a photo here</p>
+          <p className="pg-dropzone-hint">
+            We compress it to 1280 px in your browser before uploading. Files auto-delete after a
+            few minutes — nothing is kept.
+          </p>
+        </div>
+        <div className="pg-dropzone-formats" aria-hidden="true">
+          <span>JPG</span>
+          <span>PNG</span>
+          <span>WEBP</span>
         </div>
       </button>
       <input

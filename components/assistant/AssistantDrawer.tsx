@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ChatTab } from '@/components/playground/ChatTab';
 import type { AssistantScope } from './AssistantContext';
 
@@ -20,6 +20,10 @@ type Props = {
 };
 
 export function AssistantDrawer({ isOpen, scope, prefill, onClose }: Props) {
+  const shellRef = useRef<HTMLElement | null>(null);
+  const closeBtnRef = useRef<HTMLButtonElement | null>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+
   // Lock background scroll while the drawer is open.
   useEffect(() => {
     if (!isOpen) return;
@@ -30,11 +34,56 @@ export function AssistantDrawer({ isOpen, scope, prefill, onClose }: Props) {
     };
   }, [isOpen]);
 
-  // Close on Escape.
+  // Manage focus: remember opener, focus first focusable on open, restore on close.
+  useEffect(() => {
+    if (isOpen) {
+      previouslyFocusedRef.current = document.activeElement as HTMLElement | null;
+      // Defer to ensure the shell is in the DOM tree and the slide-in transition
+      // has begun before we move focus.
+      const t = window.setTimeout(() => {
+        // Prefer focusing the close button so the user knows where they are.
+        closeBtnRef.current?.focus();
+      }, 50);
+      return () => window.clearTimeout(t);
+    }
+    // On close, return focus to whichever control opened us, if it still exists.
+    const prev = previouslyFocusedRef.current;
+    if (prev && typeof prev.focus === 'function' && document.contains(prev)) {
+      prev.focus();
+    }
+  }, [isOpen]);
+
+  // Close on Escape and trap Tab focus inside the drawer.
   useEffect(() => {
     if (!isOpen) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose('esc');
+      if (e.key === 'Escape') {
+        onClose('esc');
+        return;
+      }
+      if (e.key !== 'Tab') return;
+      const shell = shellRef.current;
+      if (!shell) return;
+      const focusables = Array.from(
+        shell.querySelectorAll<HTMLElement>(
+          'a[href], area[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null);
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (e.shiftKey) {
+        if (active === first || !shell.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (active === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -65,12 +114,14 @@ export function AssistantDrawer({ isOpen, scope, prefill, onClose }: Props) {
       />
 
       <aside
+        ref={shellRef}
         data-assistant-drawer
         className={`asd-shell ${isOpen ? 'asd-shell--open' : ''}`}
         role="dialog"
         aria-modal={isOpen ? 'true' : undefined}
         aria-label={title}
         aria-hidden={!isOpen}
+        inert={!isOpen}
       >
         <header className="asd-header">
           <div className="asd-header-text">
@@ -81,12 +132,13 @@ export function AssistantDrawer({ isOpen, scope, prefill, onClose }: Props) {
             <p className="asd-subtitle">{subtitle}</p>
           </div>
           <button
+            ref={closeBtnRef}
             type="button"
             className="asd-close"
             onClick={() => onClose('x')}
             aria-label="Close assistant"
           >
-            ×
+            <span aria-hidden="true">×</span>
           </button>
         </header>
 

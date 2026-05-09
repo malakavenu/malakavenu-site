@@ -31,7 +31,11 @@ export function CaseStudies() {
           </p>
         </div>
 
-        <div className="port-filters reveal in" role="tablist">
+        <div
+          className="port-filters reveal in"
+          role="group"
+          aria-label="Filter case studies by category"
+        >
           {FILTERS.map((f) => (
             <button
               key={f.id}
@@ -39,8 +43,7 @@ export function CaseStudies() {
               className={`port-filter${active === f.id ? ' active' : ''}`}
               onClick={() => setActive(f.id)}
               data-filter={f.id}
-              role="tab"
-              aria-selected={active === f.id}
+              aria-pressed={active === f.id}
             >
               {f.label}
             </button>

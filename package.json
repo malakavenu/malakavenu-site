@@ -9,7 +9,12 @@
     "lint": "eslint",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "indexnow": "node scripts/indexnow.mjs"
+    "indexnow": "node scripts/indexnow.mjs",
+    "demo:record": "playwright test --config=scripts/demo/playwright.config.ts",
+    "demo:mobile:record": "playwright test --config=scripts/demo/playwright.mobile.config.ts",
+    "demo:gif": "node scripts/demo/postprocess.mjs",
+    "demo": "rm -rf scripts/demo/.artifacts && npm run demo:record && npm run demo:gif",
+    "demo:mobile": "rm -rf scripts/demo/.artifacts-mobile && npm run demo:mobile:record && npm run demo:gif"
   },
   "dependencies": {
     "@imgly/background-removal": "^1.7.0",
@@ -35,6 +40,7 @@
     "simple-icons": "^16.17.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

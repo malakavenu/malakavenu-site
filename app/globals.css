@@ -94,6 +94,75 @@ img { max-width: 100%; height: auto; display: block; }
 button, input, textarea { font-family: inherit; }
 input, textarea { color: var(--text); }
 
+/* -------- A11y: visually-hidden utility -------- */
+/* Removes content from visual flow but keeps it for assistive tech. */
+.sr-only {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* -------- A11y: skip to main content link -------- */
+/* WCAG 2.4.1 — bypass blocks. Visible only when keyboard-focused. */
+.skip-link {
+    position: fixed;
+    top: 8px;
+    left: 8px;
+    z-index: 2000;
+    padding: 12px 20px;
+    border-radius: 12px;
+    background: var(--grad-primary);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.95rem;
+    box-shadow: 0 12px 30px -10px rgba(124, 92, 255, 0.7);
+    transform: translateY(-150%);
+    transition: transform 0.2s var(--ease);
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+    transform: translateY(0);
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+/* -------- A11y: visible keyboard focus rings -------- */
+/* Matches WCAG 2.4.7 Focus Visible. We scope to :focus-visible so we don't
+   show rings on mouse clicks for elements like buttons/links. */
+:focus { outline: none; }
+:focus-visible {
+    outline: 2px solid #22d3ee;
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+a:focus-visible,
+button:focus-visible,
+[role='button']:focus-visible,
+[role='tab']:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+    outline: 2px solid #22d3ee;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.18);
+}
+
+/* Respect Windows high-contrast / forced-colors mode for focus rings. */
+@media (forced-colors: active) {
+    :focus-visible { outline: 2px solid CanvasText; }
+}
+
+/* Make `<main>` programmatically focusable target without showing ring. */
+main:focus { outline: none; }
+main[tabindex]:focus-visible { outline: none; }
+
 /* -------- Layout helpers -------- */
 .container {
     width: 100%;

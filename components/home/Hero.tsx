@@ -81,6 +81,14 @@ export function Hero() {
     setHasFlippedOnce(true);
   };
 
+  const onFlipKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Activate on Enter/Space; prevent Space scrolling the page.
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+      onFlip();
+    }
+  };
+
   return (
     <section id="home" className="hero">
       <div className="container">
@@ -103,13 +111,26 @@ export function Hero() {
             </h1>
 
             <div className="hero-rotator reveal in delay-1">
-              <span className="label">Currently exploring</span>
-              <span className="role" id="roleRotator">
-                <span className="role-text" aria-live="polite">
+              <span className="label" id="hero-rotator-label">
+                Currently exploring
+              </span>
+              {/* The visible role text is purely decorative typewriter UI;
+                  hide it from AT and expose a single static summary so
+                  screen readers don't announce every keystroke. */}
+              <span
+                className="role"
+                id="roleRotator"
+                role="text"
+                aria-labelledby="hero-rotator-label hero-rotator-summary"
+              >
+                <span className="role-text" aria-hidden="true">
                   {role}
                 </span>
                 <span className="role-ghost" aria-hidden="true">
                   {LONGEST_ROLE}
+                </span>
+                <span id="hero-rotator-summary" className="sr-only">
+                  AI agentic systems, MCP, generative UI, and frontend architecture
                 </span>
               </span>
             </div>
@@ -133,6 +154,8 @@ export function Hero() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  aria-hidden="true"
+                  focusable="false"
                 >
                   <line x1="5" y1="12" x2="19" y2="12" />
                   <polyline points="12 5 19 12 12 19" />
@@ -147,6 +170,8 @@ export function Hero() {
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  aria-hidden="true"
+                  focusable="false"
                 >
                   <polygon points="5 3 19 12 5 21 5 3" />
                 </svg>
@@ -182,10 +207,14 @@ export function Hero() {
                   hasFlippedOnce ? ' has-flipped-once' : ''
                 }`}
                 onClick={onFlip}
-                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onFlip()}
+                onKeyDown={onFlipKeyDown}
                 role="button"
                 tabIndex={0}
-                aria-label="Malaka Venu — flip identity card to see bio, resume and contact"
+                aria-label={
+                  flipped
+                    ? 'Show identity card front (photo)'
+                    : 'Flip identity card to see bio, résumé and contact'
+                }
                 aria-pressed={flipped}
               >
                 <div className="hero-id-face hero-id-front">
@@ -312,7 +341,7 @@ export function Hero() {
                 </div>
               </div>
 
-              <div className="float-chip tl">
+              <div className="float-chip tl" aria-hidden="true">
                 <span className="icon-circle">
                   <svg
                     viewBox="0 0 24 24"
@@ -321,6 +350,7 @@ export function Hero() {
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                    focusable="false"
                   >
                     <polyline points="16 18 22 12 16 6" />
                     <polyline points="8 6 2 12 8 18" />
@@ -329,7 +359,7 @@ export function Hero() {
                 Angular &amp; React
               </div>
 
-              <div className="float-chip br">
+              <div className="float-chip br" aria-hidden="true">
                 <span className="icon-circle">
                   <svg
                     viewBox="0 0 24 24"
@@ -338,6 +368,7 @@ export function Hero() {
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                    focusable="false"
                   >
                     <circle cx="12" cy="12" r="3" />
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .39.32.71.71.71H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
@@ -346,7 +377,7 @@ export function Hero() {
                 AI · LLM · MCP
               </div>
 
-              <div className="float-chip bl">
+              <div className="float-chip bl" aria-hidden="true">
                 <span className="icon-circle">
                   <svg
                     viewBox="0 0 24 24"
@@ -355,6 +386,7 @@ export function Hero() {
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                    focusable="false"
                   >
                     <rect x="3" y="3" width="7" height="7" />
                     <rect x="14" y="3" width="7" height="7" />

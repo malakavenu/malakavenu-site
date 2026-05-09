@@ -13,6 +13,7 @@ export function ContactForm() {
     <form
       className="contact-form reveal in delay-1"
       noValidate
+      aria-describedby="contact-form-status"
       onSubmit={(e) => {
         e.preventDefault();
         const form = e.currentTarget;
@@ -49,30 +50,77 @@ export function ContactForm() {
     >
       <div className="form-row">
         <div className="form-field">
-          <label htmlFor="name">Name</label>
-          <input id="name" name="name" type="text" placeholder="Your name" required />
+          <label htmlFor="name">
+            Name
+            <span className="sr-only"> (required)</span>
+          </label>
+          <input
+            id="name"
+            name="name"
+            type="text"
+            placeholder="Your name"
+            required
+            aria-required="true"
+            autoComplete="name"
+          />
         </div>
         <div className="form-field">
-          <label htmlFor="email">Email</label>
-          <input id="email" name="email" type="email" placeholder="you@company.com" required />
+          <label htmlFor="email">
+            Email
+            <span className="sr-only"> (required)</span>
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            placeholder="you@company.com"
+            required
+            aria-required="true"
+            autoComplete="email"
+            inputMode="email"
+          />
         </div>
       </div>
       <div className="form-field">
         <label htmlFor="subject">Subject</label>
-        <input id="subject" name="subject" type="text" placeholder="What's this about?" />
+        <input
+          id="subject"
+          name="subject"
+          type="text"
+          placeholder="What's this about?"
+          autoComplete="off"
+        />
       </div>
       <div className="form-field">
-        <label htmlFor="message">Message</label>
+        <label htmlFor="message">
+          Message
+          <span className="sr-only"> (required)</span>
+        </label>
         <textarea
           id="message"
           name="message"
           placeholder="Tell me about the role, project, or idea…"
           required
+          aria-required="true"
         />
       </div>
-      <input type="text" name="website" tabIndex={-1} autoComplete="off" hidden aria-hidden="true" />
+      {/* Honeypot — visually hidden, off-screen, and invisible to AT. */}
+      <input
+        type="text"
+        name="website"
+        tabIndex={-1}
+        autoComplete="off"
+        hidden
+        aria-hidden="true"
+      />
       <input type="hidden" name="_attr" defaultValue="" aria-hidden="true" />
-      <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={pending}>
+      <button
+        type="submit"
+        className="btn btn-primary"
+        style={{ width: '100%' }}
+        disabled={pending}
+        aria-busy={pending}
+      >
         {pending ? 'Sending…' : 'Send message'}
         <svg
           className="btn-icon"
@@ -82,20 +130,29 @@ export function ContactForm() {
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
+          aria-hidden="true"
+          focusable="false"
         >
           <line x1="22" y1="2" x2="11" y2="13" />
           <polygon points="22 2 15 22 11 13 2 9 22 2" />
         </svg>
       </button>
-      {status && (
-        <div
-          className="form-success"
-          style={{ display: 'block', color: status.ok ? undefined : '#ef4444' }}
-          role="status"
-        >
-          {status.message}
-        </div>
-      )}
+      {/* Live region: success uses polite, error uses assertive. */}
+      <div
+        id="contact-form-status"
+        className="form-success"
+        style={{
+          display: status ? 'block' : 'none',
+          color: status?.ok ? undefined : '#fca5a5',
+          background: status?.ok ? undefined : 'rgba(239, 68, 68, 0.1)',
+          borderColor: status?.ok ? undefined : 'rgba(239, 68, 68, 0.35)',
+        }}
+        role={status?.ok === false ? 'alert' : 'status'}
+        aria-live={status?.ok === false ? 'assertive' : 'polite'}
+        aria-atomic="true"
+      >
+        {status?.message}
+      </div>
     </form>
   );
 }

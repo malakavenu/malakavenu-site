@@ -33,7 +33,6 @@ export function ArticlesIndex({ articles, counts }: Props) {
   useEffect(() => {
     const url = activeTopic === 'all' ? '/articles' : `/articles?topic=${activeTopic}`;
     router.replace(url, { scroll: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only sync URL when user picks a topic
   }, [activeTopic, router]);
 
   const group = useMemo(() => topicById(activeTopic), [activeTopic]);
@@ -46,7 +45,7 @@ export function ArticlesIndex({ articles, counts }: Props) {
     <>
       <div
         className="writing-controls reveal in"
-        role="tablist"
+        role="group"
         aria-label="Filter writing by topic"
       >
         <div className="writing-filters">
@@ -58,8 +57,7 @@ export function ArticlesIndex({ articles, counts }: Props) {
               <button
                 key={g.id}
                 type="button"
-                role="tab"
-                aria-selected={active}
+                aria-pressed={active}
                 disabled={disabled}
                 onClick={() => {
                   setActiveTopic(g.id);
@@ -68,12 +66,15 @@ export function ArticlesIndex({ articles, counts }: Props) {
                 className={`writing-filter${active ? ' active' : ''}${disabled ? ' is-disabled' : ''}`}
               >
                 <span>{g.label}</span>
-                <span className="writing-filter-count">{count}</span>
+                <span className="writing-filter-count" aria-hidden="true">
+                  {count}
+                </span>
+                <span className="sr-only">({count} articles)</span>
               </button>
             );
           })}
         </div>
-        <p className="writing-filter-summary">
+        <p className="writing-filter-summary" aria-live="polite">
           Showing <strong>{filtered.length}</strong> of {articles.length}
         </p>
       </div>
