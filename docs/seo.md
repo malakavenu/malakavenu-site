@@ -7,17 +7,20 @@ Everything in **§1 What's already wired** is on the codebase today; you don't n
 | Asset | Path | Notes |
 |--|--|--|
 | Sitemap | `/sitemap.xml` | `app/sitemap.ts` — auto-includes every published article, hourly revalidate |
-| Robots | `/robots.txt` | `app/robots.ts` — allows search engines, blocks `/api`, blocks AI scrapers (GPTBot, ClaudeBot, …) |
+| Robots | `/robots.txt` | `app/robots.ts` — allows AI **answer/citation** bots (Perplexity, OAI-SearchBot, ChatGPT-User, Applebot-Extended, Google-Extended), blocks AI **training** bots (GPTBot, ClaudeBot, CCBot, Bytespider…). See file header for the rationale. |
+| `llms.txt` | `/llms.txt` | `app/llms.txt/route.ts` — emerging convention ([llmstxt.org](https://llmstxt.org)) giving AI assistants a curated Markdown index of the site, grouped by category. |
 | RSS feed | `/rss.xml` | Linked from `<head>` — gets you into Feedly/Inoreader |
 | Web manifest | `/manifest.webmanifest` | PWA install + Android home-screen |
 | OG image | `/images/og-image.png` | 1200×630, used by every page unless overridden |
 | Per-page metadata | `lib/seo.ts` → `buildMetadata()` | Title, description, canonical, OG, Twitter card |
-| Structured data (JSON-LD) | `lib/seo.ts` | Person, Website, BlogPosting, BreadcrumbList per article |
+| Structured data (JSON-LD) | `lib/seo.ts` | Person, Website, ProfessionalService, **FAQPage** (homepage), Blog, BlogPosting (with full author + speakable + image array), BreadcrumbList per article |
 | Canonical URLs | All routes | Set via `metadata.alternates.canonical` |
 | IndexNow ownership key | `/8d4d19978ecb4053356466d215588e77.txt` | Proves domain ownership to Bing/Yandex/Yep |
 | IndexNow ping script | `npm run indexnow` | POSTs every sitemap URL to api.indexnow.org |
 | Mobile viewport | `app/layout.tsx` | `viewport-fit=cover`, no zoom-blocking |
 | Image optimization | Next.js `<Image>` everywhere | AVIF/WebP, responsive `srcset` |
+
+> **Backlinks** — see [`seo-backlinks.md`](./seo-backlinks.md) for the ranked, executable off-page playbook (own properties → republish-with-canonical → directories → outreach → Show HN → tracking).
 
 ## 2. First-time setup (do these once)
 
@@ -103,6 +106,6 @@ The site's technical SEO is solid — these are the levers that actually move ra
 ## 7. Things to deliberately *not* do
 
 - **Don't add `noindex` to anything** unless you intend it (the codebase doesn't, by design).
-- **Don't unblock the AI bot list** in `app/robots.ts` unless you decide your content should train LLMs. Currently blocks GPTBot, ClaudeBot, PerplexityBot, etc. — this does *not* affect Google/Bing search crawling.
+- **Don't re-block AI answer engines** in `app/robots.ts`. As of 2026, PerplexityBot / OAI-SearchBot / ChatGPT-User / Applebot-Extended / Google-Extended are *answer/citation* bots — blocking them eliminates referral traffic from AI search surfaces. The blocklist now only covers training-only crawlers (GPTBot, ClaudeBot, CCBot, Bytespider, …).
 - **Don't keyword-stuff titles or alt text.** Modern ranking models penalize this.
 - **Don't buy backlinks.** One real LinkedIn share of an article beats 100 paid links.

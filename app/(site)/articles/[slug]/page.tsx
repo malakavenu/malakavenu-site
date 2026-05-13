@@ -80,6 +80,7 @@ export default async function ArticlePage({ params }: { params: Promise<Params> 
           updatedAt: article.updated,
           tags: article.tags,
           wordCount: article.wordCount,
+          category: article.category,
         })}
       />
       <JsonLd

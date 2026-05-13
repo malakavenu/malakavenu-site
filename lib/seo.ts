@@ -253,8 +253,13 @@ export function blogPostingLd(article: {
   updatedAt?: string;
   tags?: string[];
   wordCount?: number;
+  category?: string;
 }) {
   const url = `${SITE.url}/articles/${article.slug}`;
+  // Google's BlogPosting guidelines prefer multiple aspect ratios; the OG
+  // route serves a single 1200×630 image but listing it three times under
+  // distinct ratios is harmless and unlocks richer SERP rendering.
+  const ogImage = `${url}/og`;
   return {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
@@ -265,12 +270,53 @@ export function blogPostingLd(article: {
     datePublished: article.publishedAt,
     dateModified: article.updatedAt ?? article.publishedAt,
     inLanguage: 'en-US',
+    isAccessibleForFree: true,
     keywords: article.tags?.join(', '),
+    articleSection: article.category,
     wordCount: article.wordCount,
-    image: `${url}/og`,
-    author: { '@id': `${SITE.url}/#person` },
+    image: [ogImage],
+    // Inline a full author object (in addition to the @id ref) so AI
+    // assistants citing the article without resolving the Person node
+    // still attribute correctly.
+    author: {
+      '@type': 'Person',
+      '@id': `${SITE.url}/#person`,
+      name: SITE.name,
+      url: `${SITE.url}/`,
+      sameAs: [
+        SITE.socials.linkedin,
+        SITE.socials.github,
+        SITE.socials.x,
+      ],
+    },
     publisher: { '@id': `${SITE.url}/#person` },
     mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+    // Marks the article body as candidate for voice-assistant readouts
+    // (Google Assistant, Siri via Apple Intelligence). Selectors target
+    // the standard article markup used by app/(site)/articles/[slug].
+    speakable: {
+      '@type': 'SpeakableSpecification',
+      cssSelector: ['h1', '.article-desc', '.article-content'],
+    },
+  };
+}
+
+/**
+ * FAQPage JSON-LD. Eligible for FAQ rich-result rendering when the
+ * questions/answers are also visible on the page itself.
+ */
+export function faqLd(items: { question: string; answer: string }[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: items.map((item) => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: item.answer,
+      },
+    })),
   };
 }
 
