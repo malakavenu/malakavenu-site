@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { track } from '@/lib/track';
 import { Spinner } from './Spinner';
+import { MessageContent } from './MessageContent';
 import { textareaStyle, chipStyle, subtleNote } from './playgroundStyles';
 
 /**
@@ -74,10 +75,24 @@ export function ChatTab({
     el.style.height = `${Math.min(TEXTAREA_MAX_PX, el.scrollHeight)}px`;
   }, [input]);
 
+  // Smart auto-scroll: only nudge to the bottom if the user is already
+  // close to it. If they've scrolled up to re-read an earlier message we
+  // leave them alone (and surface a "↓ New" pill below).
+  const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [messages, streaming]);
+    if (!el) return;
+    if (isPinnedToBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages, streaming, isPinnedToBottom]);
+
+  function handleScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setIsPinnedToBottom(distanceFromBottom < 80);
+  }
 
   useEffect(() => {
     return () => abortRef.current?.abort();
@@ -209,11 +224,12 @@ export function ChatTab({
   }
 
   if (layout === 'fill') {
+    const lastIdx = messages.length - 1;
     return (
       <>
         <style>{CHAT_FILL_CSS}</style>
         <div className="ct-shell">
-          <div ref={scrollRef} className="ct-messages">
+          <div ref={scrollRef} className="ct-messages" onScroll={handleScroll}>
             {messages.length === 0 ? (
               <div className="ct-empty">
                 <div className="ct-avatar" aria-hidden="true">
@@ -226,7 +242,13 @@ export function ChatTab({
                 <p className="ct-empty-body">{emptyBody}</p>
               </div>
             ) : (
-              messages.map((m, i) => <Bubble key={i} message={m} />)
+              messages.map((m, i) => (
+                <Bubble
+                  key={i}
+                  message={m}
+                  streaming={streaming && i === lastIdx && m.role === 'assistant'}
+                />
+              ))
             )}
             {streaming &&
               messages[messages.length - 1]?.role === 'assistant' &&
@@ -238,6 +260,25 @@ export function ChatTab({
               )}
             {error && <div className="ct-error" role="alert">{error}</div>}
           </div>
+
+          {!isPinnedToBottom && messages.length > 0 && (
+            <button
+              type="button"
+              className="ct-jump"
+              onClick={() => {
+                const el = scrollRef.current;
+                if (el) el.scrollTop = el.scrollHeight;
+                setIsPinnedToBottom(true);
+              }}
+              aria-label="Jump to latest message"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+              Latest
+            </button>
+          )}
 
           <div className="ct-foot">
             {messages.length === 0 && starters.length > 0 && (
@@ -361,7 +402,16 @@ export function ChatTab({
             <p style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1.6 }}>{emptyBody}</p>
           </div>
         ) : (
-          messages.map((m, i) => <Bubble key={i} message={m} />)
+          messages.map((m, i) => {
+            const isLast = i === messages.length - 1;
+            return (
+              <Bubble
+                key={i}
+                message={m}
+                streaming={streaming && isLast && m.role === 'assistant'}
+              />
+            );
+          })
         )}
         {streaming && messages[messages.length - 1]?.role === 'assistant' && !messages[messages.length - 1]?.content && (
           <div style={{ alignSelf: 'flex-start', padding: 12 }}>
@@ -471,6 +521,7 @@ const CHAT_FILL_CSS = `
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  position: relative;
 }
 .ct-messages {
   flex: 1;
@@ -682,27 +733,356 @@ const CHAT_FILL_CSS = `
   color: var(--text-muted);
   letter-spacing: 0.02em;
 }
+
+/* ───────────── Message bubbles ───────────── */
+.bub {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  word-break: break-word;
+}
+.bub--user {
+  align-self: flex-end;
+  max-width: 85%;
+}
+.bub-user-bubble {
+  background: var(--grad-primary, linear-gradient(135deg, #7c5cff, #22d3ee));
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 18px 18px 4px 18px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  box-shadow: 0 4px 14px rgba(124, 92, 255, 0.18);
+}
+.bub--assistant {
+  align-self: stretch;
+  max-width: 100%;
+  padding: 2px 2px 14px;
+}
+.bub-placeholder {
+  color: var(--text-muted);
+  font-size: 14.5px;
+}
+.bub-caret {
+  display: inline-block;
+  width: 8px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: currentColor;
+  opacity: 0.7;
+  animation: bub-blink 1s steps(2, start) infinite;
+}
+@keyframes bub-blink {
+  to { visibility: hidden; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bub-caret { animation: none; opacity: 0.6; }
+}
+
+.bub-toolbar {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 160ms var(--ease), transform 160ms var(--ease);
+}
+.bub:hover .bub-toolbar,
+.bub:focus-within .bub-toolbar {
+  opacity: 1;
+  transform: translateY(0);
+}
+.bub-tool {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background 160ms var(--ease), color 160ms var(--ease);
+}
+.bub-tool:hover {
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+}
+.bub-tool:focus-visible {
+  outline: 2px solid var(--accent, #7c5cff);
+  outline-offset: 2px;
+}
+
+/* ───────────── Markdown content (.mc-*) ─────────────
+   Scoped under .mc so nothing leaks into the rest of the site. */
+.mc {
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.mc > :first-child { margin-top: 0; }
+.mc > :last-child  { margin-bottom: 0; }
+
+.mc p {
+  margin: 0 0 10px;
+}
+.mc strong { color: var(--text); font-weight: 650; }
+.mc em { font-style: italic; }
+.mc del { opacity: 0.65; }
+
+.mc h1, .mc h2, .mc h3, .mc h4, .mc h5, .mc h6 {
+  margin: 18px 0 8px;
+  font-family: var(--font-display, var(--font-space-grotesk, inherit));
+  color: var(--text);
+  font-weight: 650;
+  line-height: 1.3;
+}
+.mc h1 { font-size: 1.35em; }
+.mc h2 { font-size: 1.2em; }
+.mc h3 { font-size: 1.08em; }
+.mc h4 { font-size: 1em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-soft); }
+
+.mc ul, .mc ol {
+  margin: 0 0 10px;
+  padding-left: 1.4em;
+}
+.mc ul { list-style: disc; }
+.mc ol { list-style: decimal; }
+.mc li { margin: 2px 0; }
+.mc li > p { margin: 0 0 4px; }
+.mc li::marker { color: var(--text-muted); }
+.mc input[type="checkbox"] {
+  margin-right: 6px;
+  accent-color: var(--accent, #7c5cff);
+}
+
+.mc blockquote {
+  margin: 10px 0;
+  padding: 4px 0 4px 12px;
+  border-left: 3px solid var(--accent, #7c5cff);
+  color: var(--text-soft);
+  font-style: italic;
+}
+.mc blockquote p:last-child { margin-bottom: 0; }
+
+.mc hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 14px 0;
+}
+
+.mc-link {
+  color: var(--accent, #7c5cff);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  word-break: break-word;
+}
+.mc-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+.mc-inline-code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.88em;
+  background: var(--bg-card, rgba(255,255,255,0.06));
+  border: 1px solid var(--border);
+  padding: 1px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.mc table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 10px 0;
+  font-size: 13.5px;
+}
+.mc thead { background: rgba(255,255,255,0.03); }
+.mc th, .mc td {
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.mc th { font-weight: 600; color: var(--text); }
+
+/* ───────────── Code block (.cb-*) ───────────── */
+.cb {
+  margin: 12px 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #1c1f26;  /* matches github-dark-dimmed surface */
+  font-size: 13px;
+}
+.cb-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px 6px 14px;
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+.cb-lang {
+  text-transform: lowercase;
+}
+.cb-copy {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background 160ms var(--ease), color 160ms var(--ease), border-color 160ms var(--ease);
+}
+.cb-copy:hover {
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  border-color: var(--border);
+}
+.cb-copy:focus-visible {
+  outline: 2px solid var(--accent, #7c5cff);
+  outline-offset: 2px;
+}
+.cb-body {
+  margin: 0;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  line-height: 1.55;
+  -webkit-overflow-scrolling: touch;
+}
+.cb-body--plain {
+  color: #d6e1ea;
+  white-space: pre;
+}
+.cb-body--shiki :global(pre) {
+  margin: 0;
+  background: transparent !important;
+}
+/* Shiki output uses inline color styles; just neutralise its own padding. */
+.cb-body--shiki pre {
+  margin: 0;
+  background: transparent !important;
+  padding: 0 !important;
+}
+.cb-body--shiki code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+  white-space: pre;
+}
+
+/* ───────────── Jump-to-latest pill ───────────── */
+.ct-jump {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  background: var(--bg-card, rgba(20, 22, 30, 0.92));
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+  z-index: 2;
+  transition: background 160ms var(--ease);
+}
+.ct-jump:hover { background: rgba(255,255,255,0.05); }
+.ct-jump:focus-visible {
+  outline: 2px solid var(--accent, #7c5cff);
+  outline-offset: 2px;
+}
 `;
 
-function Bubble({ message }: { message: Message }) {
+function Bubble({
+  message,
+  streaming = false,
+}: {
+  message: Message;
+  streaming?: boolean;
+}) {
   const isUser = message.role === 'user';
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch {
+      // clipboard blocked — silent
+    }
+  }
+
+  if (isUser) {
+    return (
+      <div className="bub bub--user">
+        <div className="bub-user-bubble">{message.content || '…'}</div>
+      </div>
+    );
+  }
+
+  // Assistant message — full-width, no bubble chrome (desktop). On
+  // narrow viewports the parent `.ct-messages` already constrains width,
+  // so we don't need to swap layouts; the typography styles handle
+  // mobile readability via clamp/line-height.
   return (
-    <div
-      style={{
-        alignSelf: isUser ? 'flex-end' : 'flex-start',
-        maxWidth: '85%',
-        background: isUser ? 'var(--grad-primary)' : 'var(--bg-card)',
-        color: isUser ? '#fff' : 'var(--text)',
-        border: isUser ? 'none' : '1px solid var(--border)',
-        padding: '10px 14px',
-        borderRadius: 'var(--radius-md)',
-        fontSize: 14.5,
-        lineHeight: 1.55,
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-      }}
-    >
-      {message.content || '…'}
+    <div className="bub bub--assistant">
+      {message.content ? (
+        <MessageContent content={message.content} streaming={streaming} />
+      ) : (
+        <span className="bub-placeholder">…</span>
+      )}
+      {streaming && message.content && <span className="bub-caret" aria-hidden="true" />}
+      {!streaming && message.content && (
+        <div className="bub-toolbar">
+          <button
+            type="button"
+            className="bub-tool"
+            onClick={copy}
+            aria-label={copied ? 'Copied' : 'Copy reply'}
+            title={copied ? 'Copied' : 'Copy reply'}
+          >
+            {copied ? (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            )}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
