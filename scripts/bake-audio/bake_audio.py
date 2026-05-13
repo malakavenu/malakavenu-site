@@ -55,9 +55,12 @@ ARTICLES_JSON = SCRIPT_DIR / "articles.json"
 VOICE_SAMPLE_DIR = SCRIPT_DIR / "voice-sample"
 OUTPUT_DIR = ROOT / "public" / "audio"
 
-# F5-TTS model name. "F5-TTS_v1" is the default (best quality).
-# If your GPU is tight, try "E2-TTS_v1" (slightly smaller).
-MODEL_NAME = "F5-TTS_v1"
+# F5-TTS model name — must match a config file under f5_tts/configs/.
+# Current releases (v1.x of the pip package) ship F5TTS_v1_Base as the
+# best-quality default. Older docs reference 'F5-TTS_v1' (hyphenated)
+# which no longer matches a config — using it raises FileNotFoundError
+# inside omegaconf. If the install is older, fall back to 'F5TTS_Base'.
+MODEL_NAME = "F5TTS_v1_Base"
 
 # Output MP3 settings — 32 kbps mono is plenty for speech and keeps each
 # article ~2-3 MB so the audio folder stays committable to git.
