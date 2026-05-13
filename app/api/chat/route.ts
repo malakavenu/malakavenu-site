@@ -82,8 +82,15 @@ export async function POST(req: NextRequest) {
     messages: [{ role: 'system', content: system }, ...messages],
     model: body.model || 'openai',
     stream: true,
-    temperature: 0.6,
-    maxTokens: 700,
+    // Lower temperature than a general chatbot — the assistant grounds
+    // every answer in a fixed bio + article catalog, so creativity is a
+    // liability (it invents employer/project details). 0.45 keeps voice
+    // natural without hallucinating facts.
+    temperature: 0.45,
+    // Up from 700: rich Markdown answers (lists + code + tables) need
+    // headroom or they truncate mid-list. Pollinations bills per-token
+    // anyway so over-budgeting is harmless.
+    maxTokens: 1200,
   });
 
   if (!upstream.ok || !upstream.body) {
