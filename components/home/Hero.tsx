@@ -356,7 +356,7 @@ export function Hero() {
                     <polyline points="8 6 2 12 8 18" />
                   </svg>
                 </span>
-                Angular &amp; React
+                AI Frontend Architect
               </div>
 
               <div className="float-chip br" aria-hidden="true">
@@ -388,13 +388,14 @@ export function Hero() {
                     strokeLinejoin="round"
                     focusable="false"
                   >
-                    <rect x="3" y="3" width="7" height="7" />
-                    <rect x="14" y="3" width="7" height="7" />
-                    <rect x="14" y="14" width="7" height="7" />
-                    <rect x="3" y="14" width="7" height="7" />
+                    <circle cx="18" cy="5" r="3" />
+                    <circle cx="6" cy="12" r="3" />
+                    <circle cx="18" cy="19" r="3" />
+                    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                    <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
                   </svg>
                 </span>
-                Design Systems
+                LangGraph · Bedrock
               </div>
             </div>
           </div>

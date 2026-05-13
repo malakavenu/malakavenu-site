@@ -201,8 +201,8 @@ const ASSISTANT_DRAWER_CSS = `
   right: 0;
   height: 100dvh;
   width: min(440px, 100vw);
-  background: var(--bg, #0b0d14);
-  border-left: 1px solid var(--border, rgba(255,255,255,0.08));
+  background: var(--bg-1);
+  border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   transform: translateX(100%);
@@ -277,7 +277,7 @@ const ASSISTANT_DRAWER_CSS = `
 }
 
 .asd-close:focus-visible {
-  outline: 2px solid var(--accent, #7c5cff);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 

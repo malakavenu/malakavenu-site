@@ -690,7 +690,7 @@ const CHAT_FILL_CSS = `
 .ct-icon-btn:focus-visible,
 .ct-send:focus-visible,
 .ct-starter:focus-visible {
-  outline: 2px solid var(--accent, #7c5cff);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 .ct-icon-btn:hover:not(:disabled) {
@@ -722,8 +722,11 @@ const CHAT_FILL_CSS = `
   box-shadow: none;
 }
 .ct-send--stop {
-  background: linear-gradient(135deg, #f43f5e, #f97316);
-  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.35);
+  /* On-brand "stop" colour — pink→amber from the warm gradient.
+     Avoids the off-brand red used by generic chat UIs while still
+     reading as "interrupt". */
+  background: var(--grad-warm, linear-gradient(135deg, #f472b6, #f59e0b));
+  box-shadow: 0 4px 14px rgba(244, 114, 182, 0.32);
 }
 
 .ct-caveat {
@@ -813,7 +816,7 @@ const CHAT_FILL_CSS = `
   color: var(--text);
 }
 .bub-tool:focus-visible {
-  outline: 2px solid var(--accent, #7c5cff);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -857,13 +860,13 @@ const CHAT_FILL_CSS = `
 .mc li::marker { color: var(--text-muted); }
 .mc input[type="checkbox"] {
   margin-right: 6px;
-  accent-color: var(--accent, #7c5cff);
+  accent-color: var(--accent);
 }
 
 .mc blockquote {
   margin: 10px 0;
   padding: 4px 0 4px 12px;
-  border-left: 3px solid var(--accent, #7c5cff);
+  border-left: 3px solid var(--accent);
   color: var(--text-soft);
   font-style: italic;
 }
@@ -876,7 +879,7 @@ const CHAT_FILL_CSS = `
 }
 
 .mc-link {
-  color: var(--accent, #7c5cff);
+  color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 2px;
   text-decoration-thickness: 1px;
@@ -889,8 +892,11 @@ const CHAT_FILL_CSS = `
 .mc-inline-code {
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 0.88em;
-  background: var(--bg-card, rgba(255,255,255,0.06));
+  /* --bg-card-hover gives a slightly stronger tint than --bg-card so
+     short tokens (useState, etc.) actually pop against body text. */
+  background: var(--bg-card-hover);
   border: 1px solid var(--border);
+  color: var(--text);
   padding: 1px 6px;
   border-radius: 6px;
   white-space: nowrap;
@@ -920,7 +926,11 @@ const CHAT_FILL_CSS = `
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
-  background: #1c1f26;  /* matches github-dark-dimmed surface */
+  /* Site-native code surface (darker than --bg-1 so the block reads
+     as "code editor" against page chrome). github-dark-dimmed token
+     colours have higher contrast on this than on their own bg, so the
+     trade is a net win. */
+  background: var(--bg-2);
   font-size: 13px;
 }
 .cb-head {
@@ -959,7 +969,7 @@ const CHAT_FILL_CSS = `
   border-color: var(--border);
 }
 .cb-copy:focus-visible {
-  outline: 2px solid var(--accent, #7c5cff);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 .cb-body {
@@ -971,7 +981,7 @@ const CHAT_FILL_CSS = `
   -webkit-overflow-scrolling: touch;
 }
 .cb-body--plain {
-  color: #d6e1ea;
+  color: var(--text);
   white-space: pre;
 }
 .cb-body--shiki :global(pre) {
@@ -1001,19 +1011,23 @@ const CHAT_FILL_CSS = `
   align-items: center;
   gap: 4px;
   padding: 5px 12px;
-  background: var(--bg-card, rgba(20, 22, 30, 0.92));
-  border: 1px solid var(--border);
+  /* Floating element — needs an opaque surface (--bg-card is a tint). */
+  background: var(--bg-2);
+  border: 1px solid var(--border-strong);
   color: var(--text);
   font-size: 12px;
   border-radius: 999px;
   cursor: pointer;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.3);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.4);
   z-index: 2;
-  transition: background 160ms var(--ease);
+  transition: background 160ms var(--ease), border-color 160ms var(--ease);
 }
-.ct-jump:hover { background: rgba(255,255,255,0.05); }
+.ct-jump:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent);
+}
 .ct-jump:focus-visible {
-  outline: 2px solid var(--accent, #7c5cff);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 `;

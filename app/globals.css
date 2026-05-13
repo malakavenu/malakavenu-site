@@ -24,6 +24,12 @@
     --brand-3: #f472b6;   /* pink  */
     --brand-4: #34d399;   /* emerald */
 
+    /* Semantic alias — used by the reading-now pill, chat assistant
+       Markdown links, blockquotes, focus rings, and any other
+       "interactive accent" surface. Aliasing brand-1 keeps a single
+       knob to retheme later. */
+    --accent: var(--brand-1);
+
     --grad-primary: linear-gradient(135deg, #7c5cff 0%, #22d3ee 100%);
     --grad-warm:    linear-gradient(135deg, #f472b6 0%, #f59e0b 100%);
     --grad-cool:    linear-gradient(135deg, #22d3ee 0%, #34d399 100%);
