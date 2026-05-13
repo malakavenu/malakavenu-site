@@ -88,12 +88,40 @@ So slugs you've baked sound like you; slugs you haven't yet still work with the 
 
 ## How big does `public/audio/` get?
 
-For your current ~30 articles, ~60-90 MB total at 32 kbps mono. Fine to commit to git. If you ever cross ~250 MB:
+For your current ~30 articles, **~60-90 MB total** at 32 kbps mono. Fine to commit to git, fine to ship on Vercel.
 
-- Move to Vercel Blob / S3 / Cloudflare R2.
-- Or git-LFS the `public/audio/*.mp3` files.
+## Vercel Hobby (Free) compatibility
 
-The hook already supports an env override; talk to me when you cross that threshold.
+Everything in this pipeline is designed to stay inside the Free tier:
+
+| Vercel Hobby limit | Your usage | Headroom |
+|--|--|--|
+| Bandwidth | 100 GB / month | ~3 MB per Listen click. 100 GB / 3 MB ≈ **33,000 plays/month** before you hit the cap. |
+| Function invocations | 1M / month | The Listen button is **served from the CDN** for baked articles — zero function invocations. Only the chat (`/api/chat`) and TTS fallback (`/api/tts`) consume invocations. |
+| Function duration | 60s max | Both `/api/chat` and `/api/tts` are capped at `maxDuration: 60`. ✓ |
+| Image optimization | 1000 / month | Audio doesn't go through `next/image`. Articles already use static `cover` images. |
+| Build minutes | 6000 / month | Bake runs **off-Vercel** (Colab / your laptop). Vercel only builds the Next.js app. |
+| Deployment size | ~250 MB | Static `/public/audio/` is uploaded once but doesn't bloat any function bundle. ✓ |
+
+Cache headers are already set in `next.config.ts`:
+
+```ts
+{
+  source: '/audio/:path*',
+  headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+}
+```
+
+This means:
+- Each MP3 downloads **once per visitor browser** (browser cache hit on revisit).
+- Each MP3 downloads **once per Vercel edge region** (CDN cache hit for new visitors in the same region).
+- Bandwidth use stays flat regardless of traffic spikes.
+
+## When to migrate off `/public/audio/`
+
+If your repo grows past ~250 MB or your bandwidth spikes (Vercel emails you at 80% of the limit), move audio to **Vercel Blob** (free tier: 1 GB storage + 10 GB bandwidth) or **Cloudflare R2** (free tier: 10 GB storage + zero egress).
+
+Migration is a 10-line change in `useArticleTTS.ts` — swap `/audio/${slug}.mp3` for the Blob/R2 URL. Talk to me when you cross that threshold.
 
 ## When to re-bake
 
