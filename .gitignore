@@ -45,3 +45,13 @@ next-env.d.ts
 
 # lighthouse reports (local only)
 /.lighthouse/
+
+# voice-clone bake — keep your raw voice sample local only.
+# The OUTPUT MP3s in public/audio/ are committed; only the reference
+# recording stays out of the repo.
+/scripts/bake-audio/voice-sample/*
+!/scripts/bake-audio/voice-sample/.gitkeep
+/scripts/bake-audio/articles.json
+
+# python venv used for local F5-TTS bakes
+/.venv-tts/
