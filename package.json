@@ -10,7 +10,6 @@
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
     "indexnow": "node scripts/indexnow.mjs",
-    "bake:prepare": "node scripts/bake-audio/prepare-text.mjs",
     "demo:record": "playwright test --config=scripts/demo/playwright.config.ts",
     "demo:mobile:record": "playwright test --config=scripts/demo/playwright.mobile.config.ts",
     "demo:gif": "node scripts/demo/postprocess.mjs",
