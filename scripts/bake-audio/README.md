@@ -143,11 +143,5 @@ The reference voice WAV stays in `scripts/bake-audio/voice-sample/`, which is `.
 - **"Missing ref_text.txt"** → create it next to the audio with the verbatim transcript.
 - **Output sounds robotic / not like me** → most often the reference sample is too noisy, too short (<10s), or too quiet. Re-record in a quieter room.
 - **Output sounds rushed** → add a comma or a period to the ref transcript so the model models a slower pace.
-- **CUDA out of memory** → reduce sample to 15s, or use the smaller `E2TTS_Base` model (set `MODEL_NAME` in `bake_audio.py`).
-- **`FileNotFoundError: F5-TTS_v1.yaml`** → the pip package renamed configs. Use `MODEL_NAME = "F5TTS_v1_Base"`. If still missing, list configs:
-  ```python
-  import os, glob, f5_tts
-  print(sorted(os.path.basename(p).replace('.yaml','')
-               for p in glob.glob(os.path.join(os.path.dirname(f5_tts.__file__),'configs','*.yaml'))))
-  ```
+- **CUDA out of memory** → reduce sample to 15s, or use the smaller `E2-TTS_v1` model (set `MODEL_NAME` in `bake_audio.py`).
 - **First run takes ages** → F5-TTS downloads ~1.5 GB of weights. Cached for subsequent runs.
