@@ -45,16 +45,6 @@ const nextConfig: NextConfig = {
         source: '/images/:path*',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
       },
-      {
-        // Pre-baked article narration. Each MP3 is content-addressed by
-        // slug — once published it never changes (re-bakes overwrite the
-        // same path). Aggressive immutable caching keeps Vercel Hobby
-        // bandwidth flat: each article downloads once per browser, once
-        // per CDN edge region. The HEAD probe in useArticleTTS gets the
-        // same cache treatment.
-        source: '/audio/:path*',
-        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
-      },
     ];
   },
 
