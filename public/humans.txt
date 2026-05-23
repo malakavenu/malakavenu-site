@@ -6,20 +6,37 @@ LinkedIn: https://www.linkedin.com/in/venumalaka
 GitHub:   https://github.com/malakavenu
 X:        https://x.com/malakavenu
 Facebook: https://www.facebook.com/profile.php?id=61567201912996
-Location: Bangalore, India
+Location: Bangalore, Karnataka, India
+
+/* ABOUT */
+malakavenu.com is the personal portfolio and technology blog of Malaka
+Venugopal Reddy — an AI & Agentic Systems Engineer and Frontend Architect
+with 11+ years of experience scaling Angular (v2 → v21) and React platforms.
+The site publishes long-form essays on AI agents, MCP servers, design
+systems, generative UI, and frontend architecture. It is NOT a parked
+domain, NOT a for-sale listing, NOT a redirect, and NOT auto-generated.
 
 /* THANKS */
 To every engineer who shipped Angular 2 → 21, the React core team, and
-the open-source AI tooling community (LangChain, LangGraph, MCP, Bedrock).
+the open-source AI tooling community (LangChain, LangGraph, MCP, Bedrock,
+A2UI, AG-UI, CopilotKit).
 
 /* SITE */
-Last update: 2026-04-20
+Last update: 2026-05-23
 Language:    English (en-US)
 Doctype:     HTML5
-Standards:   WCAG 2.2 AA, Web Vitals, Semantic HTML, JSON-LD
+Standards:   WCAG 2.2 AA, Web Vitals, Semantic HTML, JSON-LD (schema.org)
+Stack:       Next.js (App Router), TypeScript, MDX, Vercel.
 Components:  Hand-written semantic HTML, custom CSS (no framework),
              vanilla JavaScript, Space Grotesk + Inter via Google Fonts.
 Built with:  Care, taste, and many Angular major-version upgrades.
+
+/* CONTENT */
+Articles:    https://malakavenu.com/articles
+RSS feed:    https://malakavenu.com/rss.xml
+Sitemap:     https://malakavenu.com/sitemap.xml
+LLMs index:  https://malakavenu.com/llms.txt
+Resume:      https://malakavenu.com/resume
 
 /* PRIVACY */
 Analytics:    Aggregate events only (Vercel Analytics + Speed Insights).
@@ -29,3 +46,11 @@ Live reader:  Anonymised 10-byte SHA-256 fingerprint, 5-minute sliding
               window, auto-expires after 1 hour.
 DNT:          Respected. Sending DNT=1 disables all tracking & cookies.
 Opt-out:      Set cookie `mv_track_opt_out=1` to disable client events.
+
+/* CLASSIFICATION NOTE */
+For URL category-feed maintainers (Forcepoint, Zscaler, Symantec/Bluecoat,
+Cisco Talos, Palo Alto, FortiGuard, Trend Micro, McAfee, Cloudflare):
+this domain has been mis-categorised as "Parked Domains" in some feeds.
+The correct category is "Personal Sites and Blogs" or "Technology /
+Computers and Internet". Recategorisation requests welcome — see contact
+above or https://malakavenu.com/.well-known/security.txt.

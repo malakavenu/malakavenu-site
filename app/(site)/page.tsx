@@ -11,7 +11,7 @@ import { Testimonials } from '@/components/home/Testimonials';
 import { WritingTeaser } from '@/components/home/WritingTeaser';
 import { AssistantPrompts } from '@/components/assistant/AssistantPrompts';
 import { Contact } from '@/components/home/Contact';
-import { breadcrumbLd, faqLd, professionalServiceLd } from '@/lib/seo';
+import { breadcrumbLd, faqLd } from '@/lib/seo';
 import { SITE } from '@/lib/site';
 
 // FAQ entries mirror questions visible elsewhere on the page (About,
@@ -51,7 +51,6 @@ export const revalidate = 3600;
 export default function HomePage() {
   return (
     <>
-      <JsonLd data={professionalServiceLd} />
       <JsonLd data={breadcrumbLd([{ name: 'Home', url: SITE.url + '/' }])} />
       <JsonLd data={faqLd(HOMEPAGE_FAQ)} />
       <Hero />
