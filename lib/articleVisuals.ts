@@ -37,6 +37,7 @@ export type ArticleVisual = {
 const VARIANTS: ArticleVisualVariant[] = ['violet', 'cyan', 'warm'];
 
 export const ARTICLE_VISUALS: Record<string, ArticleVisual> = {
+  'a2ui-protocol-generative-ui':     { variant: 'cyan',   logos: [siGooglechrome, siAngular],             mono: '/a2ui v0.9' },
   'agent-skills-patterns':           { variant: 'violet', logos: [siClaude],                              mono: '/skills' },
   'ai-ready-codebase-structure':     { variant: 'cyan',   logos: [siClaude],                              mono: '/CLAUDE.md' },
   'ai-and-design-systems':           { variant: 'warm',   logos: [siFigma, siClaude],                     mono: '/design×ai' },

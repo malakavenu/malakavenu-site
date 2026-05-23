@@ -1,0 +1,252 @@
+---
+title: "A2UI is the protocol that finally makes generative UI shippable"
+description: "Google open-sourced A2UI in late 2025 and shipped v0.9 at I/O 2026. It is the missing layer between your agent and your design system — what it is, where it sits next to MCP, A2A, and AG-UI, and how it changes what a frontend role looks like in 2026."
+date: '2026-05-23'
+updated: '2026-05-23'
+category: 'Generative UI'
+tags: ['A2UI', 'Generative UI', 'AI Agents', 'Design Systems', 'Angular', 'MCP', 'AG-UI', 'A2A', 'Frontend Architecture']
+author: 'Malaka Venugopal Reddy'
+cover: '/images/articles/a2ui-protocol-generative-ui.png'
+ogImage: '/images/articles/a2ui-protocol-generative-ui.png'
+---
+
+At Google I/O 2026 last month, Sundar opened with a line that sounded like marketing until I watched it land: *"AI is moving from tools that help you think to agents that help you act."*
+
+Most of the keynote was infrastructure — Gemini 3.5 Flash, Gemini 3.5 Pro, Gemini Omni, ADK v1.0, Agent Studio, Agent Runtime, Agent Gateway, TPU v8. Models, runtimes, gateways, chips. Important. Not new news for frontend engineers.
+
+The thing I have not been able to stop thinking about since wasn't on the keynote slide.
+
+It was a quiet line on a Google Developers Blog post on April 17, 2026 — *"A2UI v0.9: The New Standard for Portable, Framework-Agnostic Generative UI."* And underneath it, a question Google had answered without spelling it out:
+
+> If your agent runs autonomously across trust boundaries — your frontend, third-party APIs, partner systems — and it cannot execute code, cannot inject JavaScript, cannot touch the DOM — **how does it actually show the user a UI?**
+
+For the last 18 months, the honest answer has been: *"We jam it into a chat bubble, ship some inline cards via tool calls, render markdown, and hope."*
+
+A2UI is the answer that finally feels load-bearing. This is the long-form version of every Slack thread I've had since.
+
+<img
+  src="/images/articles/a2ui-protocol-generative-ui.png"
+  alt="A2UI flow diagram: a Gemini-style agent emits a stream of JSONL messages — createSurface, updateComponents, updateDataModel — into the A2UI v0.9 protocol, which fans out to native renderers in Angular, Flutter, and React with a green check on the right."
+  width="1200"
+  height="627"
+/>
+
+## What A2UI actually is (in one paragraph, then properly)
+
+A2UI — **Agent to UI** — is an open, declarative protocol from Google. The agent does not generate HTML. It does not generate React. It generates a stream of JSON messages that describe **what UI it wants** — surfaces, components, a data model — and your client renders those messages using **its own native components** (Angular, Flutter, Lit, React, SwiftUI, Jetpack Compose, Compose Multiplatform). The agent never executes a single line of code on your client. The client never trusts a single byte of agent-generated markup. Both sides agree on a **catalog** — the set of components your client knows how to draw — and the agent composes from it.
+
+That is the entire idea. Everything else is detail. The detail is where it gets interesting.
+
+## Where A2UI sits in the protocol stack
+
+This is where most takes about A2UI go wrong. They treat it as a competitor to MCP, AG-UI, or generative UI in Vercel AI SDK / shadcn. It is not.
+
+After two months of reading the spec, watching the I/O 2026 talks, and wiring it through an Angular renderer, here is the mental model that finally clicked:
+
+| Protocol | Origin | Layer | Answers the question |
+|---|---|---|---|
+| **MCP** (Model Context Protocol) | Anthropic | Agent ↔ Tools / Data | *"How does the agent get context and call tools?"* |
+| **A2A** (Agent2Agent) | Google | Agent ↔ Agent | *"How do agents on different frameworks talk to each other?"* |
+| **AG-UI** (Agent–User Interaction) | CopilotKit | Agent ↔ Frontend (runtime) | *"How does the agent stream events and shared state to the UI in real time?"* |
+| **A2UI** (Agent to UI) | Google | Agent ↔ Frontend (payload) | *"What UI does the agent want, in a form the client can safely render?"* |
+
+The whole stack:
+
+- MCP gives the agent **hands** (tools and data).
+- A2A gives the agent **colleagues** (other agents).
+- AG-UI gives the agent a **pipe** to your app (real-time, bidirectional).
+- A2UI gives the agent a **vocabulary** to describe UI on the other end of that pipe.
+
+Or, the version I keep using in conversations:
+
+> **MCP** is "what the agent can do." **A2A** is "who the agent can talk to." **AG-UI** is "how the agent reaches the user." **A2UI** is "what the user actually sees."
+
+These four are not competing standards. They are **layers**. By Q4 2026, every serious agent product will use three or four of them.
+
+## Why "agents speak UI" is the unlock
+
+The argument for A2UI in one sentence: **agents that can only speak text or code are constrained to chat windows or untrusted iframes. Agents that can speak UI can live anywhere in your product.**
+
+Today, if you want an agent to show a user a flight selector, you have three bad options:
+
+1. **Narrate it.** *"I found 5 flights — flight 1 is at 8:00 AM for $342, flight 2 is..."* The user reads paragraphs of structured data formatted as prose. This is what Siri does. Nobody likes it.
+2. **Tool-call a pre-built component.** Your tool returns a pre-rendered HTML blob or a fixed component name. The agent has no flexibility — every "flight selector" looks the same. Brittle, expensive to extend.
+3. **Let the agent generate code.** The model writes JSX. You eval it in a sandbox. Welcome to a year of CSPs, supply-chain anxiety, and prompt-injection bug bounties.
+
+A2UI cuts a fourth path: the agent emits a **declarative description** of the UI it wants — a `Surface` with a few `Component`s bound to a `DataModel` — and your client renders it with components from a **catalog** you control. The agent picks **what** to show. Your design system decides **how** it looks.
+
+That separation is the entire game.
+
+## The four message types that run the protocol
+
+The v0.8 stable spec defines four server-to-client messages. v0.9 (the current draft, shipped in April 2026) renames them slightly and adds extensions. Using the v0.9 names:
+
+- **`createSurface`** — *"Make a new canvas (a dialog, a sidebar, the main view) and start rendering it. Here is the root component and the catalog you should use."*
+- **`updateComponents`** — *"Here are component definitions to add or update on this surface."*
+- **`updateDataModel`** — *"Here is new data. Bind it into the surface's data model."*
+- **`deleteSurface`** — *"Tear this surface down and remove its contents."*
+
+The agent streams these as JSONL — one JSON object per line. The client reads them incrementally and renders progressively. Three things fall out of this design that matter for production:
+
+1. **Streaming UI is built in.** You don't need a custom protocol on top to get progressive render. The agent can ship the surface skeleton in the first message and the data three messages later.
+2. **State and structure are separated.** Components describe shape. The data model describes content. You can swap one without re-shipping the other.
+3. **The catalog is the contract.** The agent can only ask for components your client has registered. There is no "render this arbitrary HTML." There is no `dangerouslySetInnerHTML`. There is no `eval`.
+
+> **Rule of thumb:** tools are deterministic, prompts drift, and **catalogs are the deterministic version of "what UI is the agent allowed to ask for."** That is the same lesson I wrote about for MCP servers in [Designing MCP servers your agents will actually use](/articles/mcp-server-design), applied one layer higher.
+
+## What changed in v0.9 (April 2026), and why it matters
+
+If you only read one A2UI page, read the [Google Developers Blog post for v0.9](https://developers.googleblog.com/en/a2ui-v0-9-generative-ui/). The headline upgrades:
+
+- **A2UI Agent SDK.** Agent-side helpers for generating, validating, and streaming A2UI messages, with caching layers for low-latency UI streams. This was the painful missing piece in v0.8 — *"how do I actually get my LLM to emit valid A2UI?"* now has a real answer.
+- **`createSurface` replaces `beginRendering`.** Cleaner semantics. A surface comes into existence when the agent says so, not when an arbitrary "begin" message arrives.
+- **Client-side functions.** The agent can declare lightweight validation logic that runs on the client — perfect for form validation without round-tripping every keystroke to the LLM.
+- **Client-to-server data syncing.** Two-way data flow for collaborative editing with your agent. The user types, the agent watches the data model update, the agent reacts.
+- **Improved error handling and a simplified, modular schema.** The v0.8 schema had grown organically. v0.9 cleans it up.
+- **Multiple transports — natively.** A2UI rides on MCP, AG-UI, A2A, SSE, WebSockets, REST. Pick your pipe.
+- **Day-zero AG-UI compatibility.** If your stack already speaks AG-UI (CopilotKit's protocol), you get A2UI for free through middleware. No custom integration. CopilotKit shipped this in [PR #3588](https://github.com/CopilotKit/CopilotKit/pull/3588) on April 8, 2026 — A2UI v0.9, BYOC catalogs, dark mode via CSS variables, sandboxed UI generation.
+
+The most underrated bullet on that list is "multiple transports." It is the difference between A2UI being a Google-shaped protocol and A2UI being an industry layer. Oracle's Agent Spec, CopilotKit's AG-UI runtime, and Google's A2UI shipped a joint integration in 2026 — *"agent defined with Oracle's Agent Spec, UI defined with A2UI, delivered via AG-UI, in real time."* Define-once, render-anywhere finally has a real spec.
+
+## Angular gets a first-class renderer
+
+A2UI ships official renderers for **Lit, Angular, Flutter, and Markdown** in the v0.8 baseline; React, SwiftUI, and Jetpack Compose are on the v1.0 roadmap. For Angular specifically:
+
+```bash
+npm install @a2ui/angular @a2ui/web_core
+```
+
+```ts
+import { ApplicationConfig } from '@angular/core';
+import {
+  A2UI_RENDERER_CONFIG,
+  A2uiRendererService,
+  BasicCatalog,
+  provideMarkdownRenderer,
+} from '@a2ui/angular/v0_9';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    {
+      provide: A2UI_RENDERER_CONFIG,
+      useValue: {
+        catalogs: [new BasicCatalog()],
+        actionHandler: (action) => {
+          console.log('Action received:', action);
+        },
+      },
+    },
+    provideMarkdownRenderer(/* ... */),
+    A2uiRendererService,
+  ],
+};
+```
+
+Three things to notice if you have read the [Angular folder structure post](/articles/angular-folder-structure-for-ai-agents):
+
+1. **The renderer uses Angular Signals for fine-grained updates.** This is signals working as marketed — agent streams a `dataModelUpdate`, only the bound components recompute. Zoneless plays beautifully here.
+2. **Catalogs are pluggable.** You start with `BasicCatalog`, then layer your own. In an enterprise setup, your catalog *is* your design system — the same components your humans use, exposed to the agent through the same contract.
+3. **Surfaces are composable.** A `<a2ui-surface>` component can sit anywhere in your Angular app — a dialog, a sidebar, a panel, an entire route. It is not a takeover. It is a hosted region the agent owns.
+
+This is not a theoretical port. The Angular renderer shipped v0.9.1 in Q2 2026, and Manfred Steyer's ANGULARarchitects walkthrough already runs the full v0.9 protocol end-to-end with `A2uiRendererService.processMessages()` driving a `SurfaceComponent`.
+
+## Where A2UI plugs into the design-system-aware MCP
+
+Two weeks ago I wrote about [why your design system needs its own Figma → Code MCP](/articles/figma-mcp-design-system-aware). The argument: a design-system-aware MCP turns your component library into a **machine-readable contract** the agent can read at code-generation time.
+
+A2UI is the **runtime** version of that same idea.
+
+Where the design-system MCP says: *"At code-generation time, the agent should reach for `<Button variant='primary'>`, not invent `<Button type='primary'>`,"* A2UI says: *"At runtime, the agent should request a `Button` from the catalog with a `variant: 'primary'` prop, and your client owns the actual rendering."*
+
+Same contract. Two surfaces. Both backed by your design system as the source of truth.
+
+The pattern that is starting to emerge in the projects I work on:
+
+- **Figma → A2UI catalog generation.** Your Figma library and your code components share IDs; the same script that emits `figma_to_code` for your design-system MCP also emits a `catalog_definition.json` for your A2UI clients.
+- **Tokens flow through unchanged.** The agent never asks for a hex value. It asks for a `Card` with `tone: 'success'` or a `Text` with `style: 'heading-2'`. Your client maps that to your tokens. Rebrands no longer touch agent prompts.
+- **Accessibility is non-negotiable on the client.** The agent does not control whether a label is programmatic or a placeholder. Your component does. Catalog-level accessibility is a design-system-team concern, not an AI-team concern.
+
+This is the same insight from the design-system MCP article, applied at the rendering boundary instead of the generation boundary: **the contract is the thing. The protocol is a thin layer over the contract.**
+
+## The three problems A2UI does not solve (yet)
+
+I would not be writing this if I thought A2UI was a silver bullet. The honest gaps:
+
+### 1. Catalog drift across teams
+
+The spec defines a `Standard Catalog` per protocol version (`https://a2ui.org/specification/v0_8/standard_catalog_definition.json`), but in any real organisation you'll be running custom catalogs. Two teams will diverge on what `Card` means, the agent will get confused, and you will end up writing a catalog-governance doc. Plan for it now. This is the design-system maintainer's new job.
+
+### 2. Authoring fidelity is still hard
+
+Getting an LLM to emit valid A2UI JSON is non-trivial in v0.9. The Agent SDK helps. Structured outputs help. The Google docs themselves say *"developer ergonomics of this are not yet finalised."* Expect 6–12 months of pattern shake-out before this feels routine.
+
+### 3. Cross-platform parity is uneven
+
+Lit, Angular, Flutter, and Markdown renderers are mature. React is on the roadmap; CopilotKit's `@copilotkit/a2ui-renderer` is the production path there today. SwiftUI / Jetpack Compose are coming. If you ship to all five clients, A2UI is the right bet. If you ship to React-only and ship next quarter, AG-UI plus your own component registry is still a defensible choice.
+
+> **Rule of thumb:** pick the protocol that matches the lifetime of your product. A2UI is built for the agent product you are still building in 2030.
+
+## What A2UI changes about being a frontend engineer in 2026
+
+This is the part I keep coming back to.
+
+For 15 years, frontend engineers built **deterministic UIs** — you wrote the layout, defined the types, deployed it, and the user saw what you shipped. The only "dynamic" part was data binding.
+
+A2UI introduces a third category that does not have a clean name yet — **agent-rendered UI** — sitting between deterministic UI and full code-generated UI. Portions of your interface become **ephemeral**: the agent decides at runtime that the user needs a flight selector, an order tracker, a comparison chart, a confirmation dialog. Your job is no longer to anticipate every screen. Your job is to **ship a catalog the agent cannot draw outside of**, and a renderer that interprets agent intent into native components.
+
+That is a different mental model. It puts more weight on:
+
+- **Component completeness.** If the agent asks for something your catalog doesn't have, you ship a graceful fallback or extend the catalog. This makes design systems load-bearing in a way they have not been before.
+- **Schema discipline.** Your component props are now contracts the agent reads. Loose prop types are loose prompts. Tight types are tight UIs.
+- **Client-side guardrails.** Capability-based security at the catalog boundary — the agent can only ask for what you registered. The same lesson from the [subagent allowlist pattern](/articles/subagents-in-production), one layer up.
+- **Observability of agent UI.** When the agent asks for a `MetricCard` with `value: "$1.2M"` from data the user can't trace, you have a new class of observability problem. Log what the agent rendered, why, and from which data binding.
+
+> The senior frontend engineer in 2024 was the person who could explain why a feature was lazy-loaded. The senior frontend engineer in 2026 is the person who can answer: *"If we drop a fresh agent into our product tomorrow, can it build a usable UI from our catalog without inventing components, hardcoding tokens, or breaking accessibility?"*
+
+When the answer is no, the catalog is the gap. Not the model. Not the prompt.
+
+## A 90-day plan to ship A2UI in an existing app
+
+If you want a sequence — this is the shape that has worked for me twice now (once on an internal tool, once on a customer-facing flow):
+
+**Days 0–14 — Audit.** Inventory the components you would expose. Decide which can ship in v1 of your catalog. Most teams cut their initial catalog to 12–18 components. Do not start with 80.
+
+**Days 15–28 — Renderer pilot.** Wire `@a2ui/angular` (or Lit / Flutter / `@copilotkit/a2ui-renderer`) into a single feature route. Use `BasicCatalog` first. Confirm streaming. Confirm that signals (or your equivalent) update the bound components without re-rendering the surface.
+
+**Days 29–42 — Custom catalog v1.** Replace `BasicCatalog` with your design-system catalog — start with primitives (Text, Button, Card, Image, Stack) before adding composites (FlightCard, ProductCard, MetricCard). Every primitive you add is a tree of agent intent it unlocks.
+
+**Days 43–56 — Agent-side integration.** Use the A2UI Agent SDK or CopilotKit's middleware. Get one user intent end-to-end: input → agent → A2UI stream → rendered UI. The first end-to-end loop takes longer than you'd think; the second takes a quarter as long.
+
+**Days 57–70 — Action plumbing.** Wire `actionHandler` so user interactions on agent-rendered UI flow back to the agent. Validate the loop. This is where most teams discover that their state machine wasn't designed for ephemeral UI.
+
+**Days 71–90 — Hardening.** Catalog governance doc. Observability for surfaces. Fallbacks for missing components. Roll out to a second feature. Watch the friction; fix the friction.
+
+Most of the work is not the renderer. It is the catalog. The renderer is a thin layer over the catalog; **the catalog is the thing**.
+
+## The mental model shift
+
+For a decade, I shipped UIs **for humans, written by humans**. The tooling assumed both ends.
+
+In the A2UI world, your UI is **for humans, but assembled by an agent, from primitives written by humans**. The humans write the alphabet. The agent writes the sentence. The user reads the page.
+
+This is the same shift the design-system community went through ten years ago — from *"every team builds buttons"* to *"the design-system team builds buttons, every team composes them."* A2UI extends it: from *"humans compose components"* to *"humans + agents compose components, against the same contract."*
+
+Your design system was always documentation.
+Your design system in the MCP era was documentation **for two readers** — humans and code-generation models.
+Your design system in the A2UI era is documentation **for three readers** — humans, code-generation models, **and runtime agents** that compose components live for users you'll never see.
+
+The folder structure is the architecture. The MCP exposes the contract. A2UI consumes the contract. All four articles in [this arc](/articles/ai-ready-codebase-structure) — [folder structure](/articles/angular-folder-structure-for-ai-agents), [design-system MCP](/articles/figma-mcp-design-system-aware), and this one — are the same idea, told from four layers.
+
+## If you take one thing away
+
+Open `package.json` in your most agent-curious app right now.
+
+If you do not see a renderer that can host an agent-streamed UI — `@a2ui/angular`, `@a2ui/web_core`, `@a2ui/lit`, `@a2ui/flutter`, or `@copilotkit/a2ui-renderer` — your agents are stuck in chat bubbles or arbitrary-HTML iframes. That is the gap.
+
+Pick **one feature**. Pick **one catalog of 12–18 components**. Wire **one renderer**. Stream **one agent response** as A2UI.
+
+That is the whole first move. The rest of the architecture emerges.
+
+---
+
+If you're building (or thinking about building) on A2UI, AG-UI, MCP-UI, or rolling your own generative-UI layer, I'd love to compare notes. [Drop me a line](/#contact) — happy to share specifics on the parts of this that took the longest, the parts that surprised us, and the parts that are still unfinished.
