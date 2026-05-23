@@ -15,6 +15,7 @@ const NAV_LINKS: NavLink[] = [
   { href: '/#skills', label: 'Skills', matchHash: '#skills' },
   { href: '/#experience', label: 'Experience', matchHash: '#experience' },
   { href: '/#portfolio', label: 'Case studies', matchHash: '#portfolio' },
+  { href: '/playground', label: 'Playground' },
   { href: '/articles', label: 'Writing' },
   { href: '/#contact', label: 'Contact', matchHash: '#contact' },
 ];
@@ -43,6 +44,7 @@ export function Header() {
 
   const isCurrent = (link: NavLink): boolean => {
     if (link.href === '/articles') return pathname?.startsWith('/articles') ?? false;
+    if (link.href === '/playground') return pathname?.startsWith('/playground') ?? false;
     return false;
   };
 
