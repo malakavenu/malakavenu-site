@@ -12,7 +12,7 @@
  * playing, otherwise from the panel's idle copy.
  */
 
-import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState, useCallback } from 'react';
 import { useAudioContext } from '../AudioContext';
 import type { LanguageCode, PanelId } from '../../types';
 import styles from '../../styles/voice-studio.module.css';
@@ -41,14 +41,22 @@ const PANEL_DESCRIPTIONS: Record<PanelId, string> = {
 };
 
 export function HeroStage({ activePanel, language }: HeroStageProps) {
-  const { audioRef, activeTrack } = useAudioContext();
+  const { activeTrack, setHeroElement } = useAudioContext();
+  // Register the hero <section> with the shared context so `publishTrack`
+  // can scroll it back into view when a new clip starts while the user is
+  // scrolled down on a panel.
+  const heroRef = useCallback(
+    (el: HTMLElement | null) => {
+      setHeroElement(el);
+    },
+    [setHeroElement]
+  );
 
   return (
-    <section className={styles.hero}>
+    <section ref={heroRef} className={styles.hero}>
       <div className={styles.heroAvatar}>
         <Suspense fallback={<div className={styles.heroAvatarSkeleton} />}>
           <SpeakingAvatar
-            audioRef={audioRef}
             mode="stage"
             caption={activeTrack?.caption}
           />

@@ -1230,8 +1230,22 @@
 .historyMeta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.12rem; }
 .historyText { font-size: 0.78rem; color: var(--vs-text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .historyInfo { font-size: 0.62rem; color: var(--vs-text-muted); font-family: var(--vs-font-mono); }
-.historyDownload { color: var(--vs-text-muted); font-size: 0.82rem; text-decoration: none; }
-.historyDownload:hover { color: var(--vs-grad-cyan); }
+/* Theme-matched icon button — mirrors `.historyPlayBtn` so the row looks balanced. */
+.historyDownload {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: none;
+  background: rgba(34, 211, 238, 0.12);
+  color: var(--vs-grad-cyan);
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+  flex: 0 0 auto;
+}
+.historyDownload:hover:not(:disabled) {
+  background: rgba(34, 211, 238, 0.22);
+  transform: translateY(-1px);
+}
+.historyDownload:disabled { opacity: 0.55; cursor: progress; }
 .historyShowAll {
   border: none; background: none; color: var(--vs-text-muted); font-size: 0.7rem;
   cursor: pointer; padding: 0.4rem 0; text-align: center; width: 100%;
@@ -1533,6 +1547,24 @@
   .sidebarMobileTrigger { display: inline-flex; }
   .sidebarDrawerBackdrop { display: block; }
 
+  /* When the drawer is open the hamburger is redundant AND visually overlaps
+     the drawer's brand mark (both live at top-left). Hide it via the existing
+     aria-expanded attribute so the drawer header reads cleanly. */
+  .sidebarMobileTrigger[aria-expanded='true'] { display: none; }
+
+  /* Tighten the drawer's header so brand + close don't feel cramped. */
+  .sidebar .sidebarHeader {
+    padding: 0.5rem 0.6rem 0.7rem;
+    gap: 0.5rem;
+  }
+
+  /* In drawer mode the LANGUAGE section currently relies on margin-top: auto
+     (which is great on desktop where the sidebar fills the viewport). On
+     mobile that pushes the picker all the way to the bottom of the drawer's
+     scroll area — users on the screenshot couldn't find it. Drop the auto-
+     margin so it sits right under the nav. */
+  .sidebar .sidebarSection { margin-top: 0.4rem; }
+
   .main { padding: 1rem 1rem 0.5rem; gap: 0.9rem; padding-top: 64px; }
   .hero {
     grid-template-columns: 1fr;
@@ -1543,19 +1575,37 @@
   .heroTitle { font-size: 1.9rem; }
   .bento { grid-template-columns: 1fr; gap: 0.8rem; }
 
+  /* Mobile layout: wrapped flex with explicit `order` so the action buttons
+     (speed / download / close) sit RIGHT next to the title — natural DOM
+     order put them after the play+seek block, which made them render as a
+     stray third row at the bottom of the card. `order` overrides the DOM
+     order without restructuring the markup. `min-height` locks the card so
+     it doesn't "jump" when the seek bar appears/disappears. */
   .floatingPlayer {
-    grid-template-columns: 1fr auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     width: calc(100% - 1rem);
-    padding: 0.7rem 0.85rem;
-    gap: 0.55rem;
-    bottom: 12px;
+    padding: 0.6rem 0.75rem 0.7rem;
+    gap: 0.45rem 0.55rem;
+    bottom: 10px;
     right: 0.5rem;
     left: 0.5rem;
     transform: none;
+    min-height: 88px;
   }
-  .floatingPlayerCenter { grid-column: 1 / -1; }
-  .floatingPlayerLeft { min-width: 0; }
-  .floatingPlayerRight { gap: 0.3rem; }
+  /* Row 1: title (fills remaining space) + compact action cluster on the right */
+  .floatingPlayerLeft  { order: 1; flex: 1 1 0; min-width: 0; }
+  .floatingPlayerRight { order: 2; flex: 0 0 auto; gap: 0.3rem; }
+  /* Row 2: play + seek + times span the full width */
+  .floatingPlayerCenter {
+    order: 3;
+    flex: 1 1 100%;
+    grid-column: unset;
+    gap: 0.55rem;
+  }
+  .floatingPlayerSpeed   { padding: 0.32rem 0.55rem; font-size: 0.7rem; }
+  .floatingPlayerIconBtn { width: 30px; height: 30px; }
 
   .spacePopover {
     position: static;

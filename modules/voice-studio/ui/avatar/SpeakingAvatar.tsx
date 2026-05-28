@@ -23,7 +23,6 @@ import {
   Component,
   type ReactNode,
 } from 'react';
-import { useLipsync } from './useLipsync';
 import { type AvatarPreset } from './presets';
 import { AvatarPortraitFallback } from './AvatarPortraitFallback';
 import { SpeakingStage } from './SpeakingStage';
@@ -38,7 +37,6 @@ const AvatarCanvas = lazy(() =>
 export type AvatarMode = 'stage' | 'widget' | 'expanded';
 
 interface SpeakingAvatarProps {
-  audioRef: React.RefObject<HTMLAudioElement | null>;
   mode?: AvatarMode;
   /** Caption rendered with the avatar in `stage` mode */
   caption?: string;
@@ -65,122 +63,44 @@ class CanvasErrorBoundary extends Component<
 }
 
 export function SpeakingAvatar({
-  audioRef,
   mode = 'stage',
   caption,
 }: SpeakingAvatarProps) {
-  // Active preset lives in the shared AudioContext so the TTS panels can
-  // auto-match the voice to the avatar's gender. `setPreset` is just a
-  // pass-through to the context setter so it can keep its existing usage
-  // patterns inside this component.
-  const { avatarPreset: preset, setAvatarPreset: setPreset } = useAudioContext();
-  // 3D toggle starts OFF; it's only flipped to ON (and re-enabled to the
-  // user) once we've confirmed a working GLB exists for the active preset.
-  const [use3D, setUse3D] = useState(false);
-  // GLB resolution state, batched into a single object so we never split
-  // updates across renders. `presetId` is the preset that produced the
-  // result; if it doesn't match the live preset, the result is stale and
-  // we render the 2D fallback while the async resolver catches up.
-  const [glb, setGlb] = useState<{
-    presetId: string;
-    url: string | null;
-    available: boolean;
-  } | null>(null);
+  // All avatar view state (preset / 3D toggle / GLB resolution / error tracking)
+  // lives in AudioContext so the hero stage and the floating widget render the
+  // same avatar with the same settings simultaneously without each owning their
+  // own analyser. See AudioContext.tsx for the lifting rationale.
+  const {
+    avatarPreset: preset,
+    setAvatarPreset: setPreset,
+    use3D,
+    setUse3D,
+    glb,
+    erroredPresetId,
+    setErroredPresetId,
+    lipsyncStateRef,
+    getLipsyncState,
+  } = useAudioContext();
+
   const [expanded, setExpanded] = useState(false);
   const [minimized, setMinimized] = useState(false);
-  // Track WHICH preset most recently failed its 3D load. Storing the id (not
-  // a bare boolean) means switching avatars automatically clears the error
-  // for the new preset without needing a setState-in-effect reset hack.
-  const [erroredPresetId, setErroredPresetId] = useState<string | null>(null);
-  const glbError = erroredPresetId === preset.id;
 
-  // Treat the current GLB resolution as stale (== still probing) whenever
-  // its `presetId` doesn't match the live preset.id — this happens for one
-  // render after the user picks a new avatar and before the async resolver
-  // posts its result.
+  const glbError = erroredPresetId === preset.id;
+  // Treat the GLB resolution as stale whenever its `presetId` doesn't match
+  // the live preset — happens for one render after the user picks a new
+  // avatar and before the async resolver in AudioContext posts its result.
   const glbForPreset = glb?.presetId === preset.id ? glb : null;
   const glbUrl = glbForPreset?.url ?? null;
   const glbAvailable = glbForPreset?.available ?? null;
 
-  const { connectAudio, getState, stateRef } = useLipsync();
-  const volumeReader = useCallback(() => stateRef.current.volume, [stateRef]);
-  const visemeReader = useCallback(
-    () => stateRef.current.dominantViseme,
-    [stateRef]
+  const volumeReader = useCallback(
+    () => lipsyncStateRef.current.volume,
+    [lipsyncStateRef]
   );
-  const { audioMountTick, activeTrack } = useAudioContext();
-
-  // Resolve which GLB to load for the active preset. Priority:
-  //   1. Local file under /public/voice-studio/avatars/, if listed in the
-  //      checked-in manifest (`npm run voice-studio:avatars` updates it).
-  //   2. The preset's remoteUrl, if set (currently a CC-licensed avatar on
-  //      jsDelivr — RPM's CDN was shut down in Jan 2026).
-  //   3. Otherwise no GLB: stay in 2D portrait mode and disable the toggle.
-  //
-  // The manifest is fetched (not the GLB itself) to avoid HEAD-probing GLB
-  // URLs that may 404 — browsers log those failures before our try/catch can
-  // see them, polluting DevTools.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      // Step 1 — check the local manifest.
-      let localIds: string[] = [];
-      try {
-        const res = await fetch('/voice-studio/avatars/manifest.json', {
-          cache: 'force-cache',
-        });
-        if (res.ok) {
-          const data = (await res.json()) as { available?: string[] };
-          if (Array.isArray(data.available)) localIds = data.available;
-        }
-      } catch {
-        // Manifest read failed — proceed as if empty.
-      }
-      if (cancelled) return;
-
-      if (localIds.includes(preset.id)) {
-        setGlb({ presetId: preset.id, url: preset.localUrl, available: true });
-        return;
-      }
-
-      // Step 2 — fall back to the remote CDN URL if the preset has one.
-      if (preset.remoteUrl) {
-        setGlb({ presetId: preset.id, url: preset.remoteUrl, available: true });
-        return;
-      }
-
-      // Step 3 — no usable GLB; keep 3D toggle disabled.
-      setGlb({ presetId: preset.id, url: null, available: false });
-      setUse3D(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [preset]);
-
-
-  // Drive the lipsync connection on every event that could meaningfully
-  // change the audio pipeline:
-  //   - the underlying <audio> element mounts (audioMountTick),
-  //   - a new track is published (activeTrack.url),
-  //   - the user presses play (which is the user gesture that's allowed to
-  //     resume a suspended AudioContext — without this, wawa-lipsync's
-  //     analyser sees 0 volume even though audio is audible).
-  // The hook's `connectAudio` is idempotent + always calls `audioContext.resume()`
-  // through wawa, so repeated calls are safe and double as the unlock signal.
-  useEffect(() => {
-    const el = audioRef.current;
-    if (!el) return;
-    connectAudio(el);
-    const onPlay = () => connectAudio(el);
-    const onLoadedMeta = () => connectAudio(el);
-    el.addEventListener('play', onPlay);
-    el.addEventListener('loadedmetadata', onLoadedMeta);
-    return () => {
-      el.removeEventListener('play', onPlay);
-      el.removeEventListener('loadedmetadata', onLoadedMeta);
-    };
-  }, [audioRef, connectAudio, audioMountTick, activeTrack?.url]);
+  const visemeReader = useCallback(
+    () => lipsyncStateRef.current.dominantViseme,
+    [lipsyncStateRef]
+  );
 
   const handlePreset = useCallback(
     (p: AvatarPreset) => {
@@ -200,7 +120,7 @@ export function SpeakingAvatar({
       // Re-enabling 3D should give a previously-errored GLB another chance.
       setErroredPresetId(null);
     },
-    [glbUrl, glbAvailable]
+    [glbUrl, glbAvailable, setUse3D, setErroredPresetId]
   );
   const handleExpand = useCallback(() => setExpanded(true), []);
   const handleClose = useCallback(() => setExpanded(false), []);
@@ -246,12 +166,12 @@ export function SpeakingAvatar({
               />
             }
           >
-            <AvatarCanvas glbUrl={glbUrl} getState={getState} mode={renderMode} />
+            <AvatarCanvas glbUrl={glbUrl} getState={getLipsyncState} mode={renderMode} />
           </Suspense>
         </CanvasErrorBoundary>
       );
     },
-    [use3D, glbError, preset, glbUrl, getState, volumeReader, visemeReader]
+    [use3D, glbError, preset, glbUrl, getLipsyncState, volumeReader, visemeReader, setErroredPresetId]
   );
 
   // ─── Widget mode (floating corner) ──────────────────────────────────────

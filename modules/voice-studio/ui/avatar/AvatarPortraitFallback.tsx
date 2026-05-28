@@ -71,10 +71,15 @@ export function AvatarPortraitFallback({
 
   const px = SIZE_PX[size];
 
+  // `aspect-ratio: 1/1` + `width: min(px, 100%)` keeps the portrait perfectly
+  // round when the parent flex container is narrower than `px` (common on
+  // mobile expanded mode). Setting only width/height in pixels lets flex
+  // shrink the WIDTH while leaving HEIGHT at full px — which renders the
+  // ring + glow as a tall ellipse instead of a circle.
   return (
     <div
       className={`${styles.portraitWrap} ${styles[`portraitWrap_${size}`] ?? ''}`}
-      style={{ width: px, height: px }}
+      style={{ width: `min(${px}px, 100%)`, aspectRatio: '1 / 1' }}
     >
       <div ref={ringRef} className={styles.portraitRing} aria-hidden="true" />
       <div className={styles.portraitGlow} aria-hidden="true" />

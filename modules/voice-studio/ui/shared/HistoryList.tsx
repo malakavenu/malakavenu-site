@@ -7,6 +7,7 @@
 import { useState, useCallback } from 'react';
 import type { HistoryEntry } from './useHistory';
 import { exportAsMp3, downloadBlob } from '../../client/mp3-export';
+import { PlayIcon, DownloadIcon, SpinnerIcon } from './Icons';
 import styles from '../../styles/voice-studio.module.css';
 
 interface HistoryListProps {
@@ -67,7 +68,7 @@ export function HistoryList({ entries, onPlay, onClear }: HistoryListProps) {
               onClick={() => onPlay(entry)}
               aria-label={`Play: ${entry.text.slice(0, 30)}`}
             >
-              ▶
+              <PlayIcon size={14} />
             </button>
             <div className={styles.historyMeta}>
               <span className={styles.historyText}>
@@ -85,7 +86,7 @@ export function HistoryList({ entries, onPlay, onClear }: HistoryListProps) {
               aria-label={downloadingId === entry.id ? 'Encoding MP3…' : 'Download as MP3'}
               title={downloadingId === entry.id ? 'Encoding MP3…' : 'Download as MP3'}
             >
-              {downloadingId === entry.id ? '…' : '⬇'}
+              {downloadingId === entry.id ? <SpinnerIcon size={14} /> : <DownloadIcon size={14} />}
             </button>
           </div>
         ))}

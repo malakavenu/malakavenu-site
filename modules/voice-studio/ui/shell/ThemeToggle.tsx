@@ -15,10 +15,18 @@ const STORAGE_KEY = 'voiceStudio.theme';
 type Theme = 'light' | 'dark';
 
 function readClientPreference(): Theme {
+  // Voice Studio defaults to dark regardless of the OS-level preference: the
+  // studio UI is purpose-built for the dark palette (glass cards, neon
+  // accents, low-contrast input fields look out of place in light mode). The
+  // user can still opt-in to light mode via the toggle, in which case their
+  // choice persists in `localStorage` and wins on subsequent visits.
   if (typeof window === 'undefined') return 'dark';
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === 'light' || stored === 'dark') return stored;
-  if (window.matchMedia?.('(prefers-color-scheme: light)').matches) return 'light';
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored === 'light' || stored === 'dark') return stored;
+  } catch {
+    // localStorage may be blocked (private mode / SSR-like contexts).
+  }
   return 'dark';
 }
 
@@ -47,10 +55,16 @@ export function ThemeToggle({ compact = false }: ThemeToggleProps) {
 
   useEffect(() => {
     const preferred = readClientPreference();
-    if (preferred !== theme) setTheme(preferred);
+    // setState-in-effect is unavoidable here: SSR/first-paint must use the
+    // hard-coded 'dark' value (see comment on `useState` above) to avoid a
+    // hydration mismatch that would tear down the always-mounted audio
+    // element. The post-mount read promotes the stored preference exactly
+    // once. The `if` guard skips the extra render when nothing changed.
+    if (preferred !== theme) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTheme(preferred);
+    }
     applyTheme(preferred);
-    // We intentionally read the preference once on mount; subsequent changes
-    // come from the toggle itself.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -16,6 +16,13 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAudioContext } from '../AudioContext';
 import { formatDuration } from '../../client/audio-utils';
 import { exportAsMp3, downloadBlob } from '../../client/mp3-export';
+import {
+  PlayIcon,
+  PauseIcon,
+  DownloadIcon,
+  SpinnerIcon,
+  CloseIcon,
+} from '../shared/Icons';
 import styles from '../../styles/voice-studio.module.css';
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2] as const;
@@ -212,56 +219,3 @@ function PulseDot({ active }: { active: boolean }) {
   );
 }
 
-function PlayIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M8 5v14l11-7L8 5z" />
-    </svg>
-  );
-}
-
-function PauseIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <rect x="6" y="5" width="4" height="14" rx="1" />
-      <rect x="14" y="5" width="4" height="14" rx="1" />
-    </svg>
-  );
-}
-
-function DownloadIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 3v12" />
-      <path d="M7 10l5 5 5-5" />
-      <path d="M5 21h14" />
-    </svg>
-  );
-}
-
-function SpinnerIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      aria-hidden="true"
-      style={{ animation: 'vs-spin 0.9s linear infinite' }}
-    >
-      <path d="M12 3a9 9 0 1 0 9 9" />
-    </svg>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
-      <line x1="6" y1="6" x2="18" y2="18" />
-      <line x1="18" y1="6" x2="6" y2="18" />
-    </svg>
-  );
-}
