@@ -53,11 +53,14 @@ export function AssistantLauncher() {
   const seen = useSyncExternalStore(subscribeSeen, readSeenSnapshot, readSeenServerSnapshot);
   const isMac = useSyncExternalStore(noopSubscribe, readMacSnapshot, readMacServerSnapshot);
 
-  // Hide the floating launcher on `/playground`: that page already exposes a
-  // dedicated chat tab + "Generate" send button, and on phones the FAB
-  // overlapped the bottom-right corner of the result canvas. Users can still
-  // open the global drawer with ⌘K / Ctrl+K.
+  // Hide the floating launcher on routes that own their entire viewport.
+  // - `/playground`: dedicated chat tab + "Generate" button already do the job
+  //   and on phones the FAB overlapped the result canvas.
+  // - `/voice-studio` (and nested routes): runs in its own full-screen shell
+  //   with a sidebar + floating audio player; the FAB collides with the
+  //   player and isn't on-brand with the studio UI.
   if (pathname === '/playground') return null;
+  if (pathname === '/voice-studio' || pathname?.startsWith('/voice-studio/')) return null;
 
   function handleClick() {
     try {

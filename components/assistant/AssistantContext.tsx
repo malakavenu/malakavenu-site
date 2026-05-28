@@ -9,8 +9,15 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { usePathname } from 'next/navigation';
 import { track } from '@/lib/track';
 import { AssistantDrawer } from './AssistantDrawer';
+
+/** Routes where the global Ask-Malaka surface is fully disabled. */
+function isAssistantDisabledRoute(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  return pathname === '/voice-studio' || pathname.startsWith('/voice-studio/');
+}
 
 /**
  * Site-wide AI assistant orchestration.
@@ -50,6 +57,17 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   const [scope, setScope] = useState<AssistantScope>(DEFAULT_SCOPE);
   const [prefill, setPrefill] = useState<string | null>(null);
+  const pathname = usePathname();
+  const assistantDisabled = isAssistantDisabledRoute(pathname);
+
+  // If the user navigates into a disabled route while the drawer is open,
+  // close it silently so it doesn't linger in the background.
+  useEffect(() => {
+    if (assistantDisabled && isOpen) {
+      setIsOpen(false);
+      setPrefill(null);
+    }
+  }, [assistantDisabled, isOpen]);
 
   const open = useCallback((args: OpenArgs = {}) => {
     if (args.scope) setScope(args.scope);
@@ -85,7 +103,9 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   // including from focused inputs (standard global-palette pattern). The one
   // exception: when the user is already typing inside the drawer's own
   // textarea, we let the keystroke pass through so it doesn't hijack typing.
+  // Skipped entirely on routes where the assistant is disabled.
   useEffect(() => {
+    if (assistantDisabled) return;
     function onKey(e: KeyboardEvent) {
       const isModK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k';
       if (!isModK) return;
@@ -105,7 +125,7 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [assistantDisabled]);
 
   const value = useMemo<AssistantContextValue>(
     () => ({ isOpen, scope, prefill, open, close, toggle }),
@@ -115,12 +135,14 @@ export function AssistantProvider({ children }: { children: ReactNode }) {
   return (
     <AssistantContext.Provider value={value}>
       {children}
-      <AssistantDrawer
-        isOpen={isOpen}
-        scope={scope}
-        prefill={prefill}
-        onClose={close}
-      />
+      {!assistantDisabled && (
+        <AssistantDrawer
+          isOpen={isOpen}
+          scope={scope}
+          prefill={prefill}
+          onClose={close}
+        />
+      )}
     </AssistantContext.Provider>
   );
 }

@@ -1,0 +1,25 @@
+{
+  "name": "@malakavenu/voice-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Free, Indian-first multilingual voice studio — TTS, voice cloning, voice conversion, and translate-and-speak.",
+  "exports": {
+    ".": "./index.ts",
+    "./config": "./config.ts",
+    "./types": "./types.ts"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.0.0",
+    "@huggingface/inference": "^3.0.0",
+    "@gradio/client": "^1.0.0",
+    "kokoro-js": "^1.2.0",
+    "lamejs": "^1.2.1"
+  },
+  "optionalDependencies": {
+    "onnxruntime-web": "^1.17.0"
+  }
+}

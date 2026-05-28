@@ -1,0 +1,38 @@
+{
+  "en-IN-female": {
+    "language": "en-IN",
+    "audio": "en-IN-female.wav",
+    "transcript": "Hello, welcome to Voice Studio. This is a sample reference voice for cloning experiments.",
+    "duration_sec": 6.5,
+    "voice_attributes": "warm, professional, female, Indian English",
+    "license": "Generated via Microsoft Edge TTS (en-IN-NeerjaExpressiveNeural)",
+    "source": "voice-studio:samples"
+  },
+  "en-IN-male": {
+    "language": "en-IN",
+    "audio": "en-IN-male.wav",
+    "transcript": "Good morning. This is a sample voice for the cloning playground.",
+    "duration_sec": 5.5,
+    "voice_attributes": "confident, clear, male, Indian English",
+    "license": "Generated via Microsoft Edge TTS (en-IN-PrabhatNeural)",
+    "source": "voice-studio:samples"
+  },
+  "te-IN-female": {
+    "language": "te-IN",
+    "audio": "te-IN-female.wav",
+    "transcript": "నమస్తే, వాయిస్ స్టూడియోకి స్వాగతం. ఇది క్లోనింగ్ కోసం నమూనా రెఫరెన్స్ వాయిస్.",
+    "duration_sec": 7.0,
+    "voice_attributes": "warm, calm, female, Telugu",
+    "license": "Generated via Microsoft Edge TTS (te-IN-ShrutiNeural)",
+    "source": "voice-studio:samples"
+  },
+  "te-IN-male": {
+    "language": "te-IN",
+    "audio": "te-IN-male.wav",
+    "transcript": "నమస్కారం. ఇది క్లోనింగ్ కోసం నమూనా పురుష స్వరం.",
+    "duration_sec": 6.0,
+    "voice_attributes": "authoritative, deep, male, Telugu",
+    "license": "Generated via Microsoft Edge TTS (te-IN-MohanNeural)",
+    "source": "voice-studio:samples"
+  }
+}

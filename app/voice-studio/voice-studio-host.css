@@ -1,0 +1,39 @@
+/* ============================================================================
+   Voice Studio host — strips the site chrome and reclaims the full viewport.
+   Loaded only on /voice-studio (and nested routes), thanks to Next.js
+   per-route CSS scoping via the layout import.
+   ============================================================================ */
+
+.vs-shell-host {
+  min-height: 100vh;
+  background: #07090f;
+  isolation: isolate;
+  color-scheme: dark;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.vs-shell-host ::-webkit-scrollbar { width: 10px; height: 10px; }
+.vs-shell-host ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+.vs-shell-host ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* Native skip-link / header / footer from the site layout are not rendered
+   on this route, but if a parent ever leaks them through, hide them. */
+body:has(.vs-shell-host) .skip-link,
+body:has(.vs-shell-host) .site-header,
+body:has(.vs-shell-host) .site-footer,
+body:has(.vs-shell-host) .mobile-dock {
+  display: none !important;
+}
+
+/* Global spinner animation — referenced by inline `animation: vs-spin`
+   styles (e.g. in the floating player's download spinner). Lives outside
+   the CSS module so its name isn't hashed. */
+@keyframes vs-spin {
+  to { transform: rotate(360deg); }
+}
