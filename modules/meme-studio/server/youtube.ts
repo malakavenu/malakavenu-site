@@ -1,6 +1,5 @@
 import { fetchTranscript } from 'youtube-transcript';
 import type { TranscriptResult, TranscriptSegment } from '../types';
-import { fetchWithTimeout } from './providers/http';
 
 /** Extract an 11-char YouTube video id from common URL shapes (or a bare id). */
 export function parseVideoId(input: string): string | null {
@@ -27,138 +26,47 @@ export function parseVideoId(input: string): string | null {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
- * Innertube (YouTube internal API) caption fetch.
+ * Optional proxy support.
  *
- * The `youtube-transcript` library scrapes the public watch page. From cloud /
- * datacenter IPs (Vercel, AWS) YouTube serves a consent/bot wall instead, so
- * that path reports "no captions" even when captions exist. The Innertube
- * ANDROID client below talks to YouTube's own player API and avoids the
- * consent wall, which is far more reliable on serverless hosts.
+ * `youtube-transcript` (v1.3.1) already uses YouTube's internal Innertube
+ * (ANDROID) API with a watch-page fallback, so it works fine from residential
+ * IPs. From cloud / datacenter IPs (Vercel, AWS) YouTube blocks BOTH paths
+ * (recaptcha wall + empty caption payloads) regardless of how the request is
+ * crafted — that is why captions fetch locally but fail in production.
+ *
+ * The only reliable fix is to route requests through a residential / rotating
+ * HTTP(S) proxy. Set `YOUTUBE_PROXY` (or `YOUTUBE_PROXY_URL`) on the host and
+ * every YouTube request below is sent through it.
  * ──────────────────────────────────────────────────────────────────────── */
 
-// Public Innertube key used by the YouTube web/mobile clients.
-const INNERTUBE_KEY = 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w';
-const PLAYER_URL = `https://www.youtube.com/youtubei/v1/player?key=${INNERTUBE_KEY}`;
-const ANDROID_UA =
-  'com.google.android.youtube/19.09.37 (Linux; U; Android 14) gzip';
+// `undefined` = not yet resolved, `null` = no proxy configured.
+let proxiedFetch: typeof fetch | null | undefined;
 
-interface CaptionTrack {
-  baseUrl: string;
-  languageCode?: string;
-  kind?: string;
-  name?: { simpleText?: string; runs?: { text?: string }[] };
-}
-
-interface Json3Event {
-  tStartMs?: number;
-  dDurationMs?: number;
-  segs?: { utf8?: string }[];
-}
-
-/** Pick the best caption track: prefer Telugu, then English, then anything. */
-function pickTrack(tracks: CaptionTrack[]): CaptionTrack | null {
-  if (!tracks.length) return null;
-  const byLang = (code: string) =>
-    tracks.find((t) => (t.languageCode ?? '').toLowerCase().startsWith(code));
-  return byLang('te') ?? byLang('en') ?? tracks[0];
-}
-
-async function fetchCaptionTracks(videoId: string): Promise<CaptionTrack[]> {
-  const res = await fetchWithTimeout(
-    PLAYER_URL,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'User-Agent': ANDROID_UA,
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-      body: JSON.stringify({
-        videoId,
-        context: {
-          client: {
-            clientName: 'ANDROID',
-            clientVersion: '19.09.37',
-            androidSdkVersion: 34,
-            hl: 'en',
-            gl: 'IN',
-          },
-        },
-      }),
-    },
-    15_000,
-  );
-  if (!res.ok) return [];
-  const data = (await res.json()) as {
-    captions?: {
-      playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] };
-    };
-  };
-  return data.captions?.playerCaptionsTracklistRenderer?.captionTracks ?? [];
-}
-
-async function fetchInnertubeTranscript(
-  videoId: string,
-): Promise<{ segments: TranscriptSegment[]; language?: string } | null> {
-  const tracks = await fetchCaptionTracks(videoId);
-  const track = pickTrack(tracks);
-  if (!track?.baseUrl) return null;
-
-  const url = `${track.baseUrl}${track.baseUrl.includes('?') ? '&' : '?'}fmt=json3`;
-  const res = await fetchWithTimeout(
-    url,
-    { headers: { 'User-Agent': ANDROID_UA, 'Accept-Language': 'en-US,en;q=0.9' } },
-    15_000,
-  );
-  if (!res.ok) return null;
-
-  const data = (await res.json()) as { events?: Json3Event[] };
-  const segments: TranscriptSegment[] = (data.events ?? [])
-    .filter((e) => Array.isArray(e.segs))
-    .map((e) => ({
-      text: (e.segs ?? [])
-        .map((s) => s.utf8 ?? '')
-        .join('')
-        .replace(/\s+/g, ' ')
-        .trim(),
-      offsetSec: (e.tStartMs ?? 0) / 1000,
-      durationSec: (e.dDurationMs ?? 0) / 1000,
-    }))
-    .filter((s) => s.text);
-
-  if (!segments.length) return null;
-  return { segments, language: track.languageCode };
-}
-
-/** Legacy scraping fallback (works on residential IPs, often blocked on cloud). */
-async function fetchLibraryTranscript(
-  videoId: string,
-): Promise<{ segments: TranscriptSegment[]; language?: string } | null> {
-  const tryLangs: (string | undefined)[] = ['te', 'en', undefined];
-  for (const lang of tryLangs) {
-    try {
-      const rows = await fetchTranscript(videoId, lang ? { lang } : undefined);
-      if (rows && rows.length) {
-        return {
-          segments: rows.map((r) => ({
-            text: r.text,
-            offsetSec: typeof r.offset === 'number' ? r.offset : 0,
-            durationSec: typeof r.duration === 'number' ? r.duration : 0,
-          })),
-          language: rows[0]?.lang,
-        };
-      }
-    } catch {
-      // try next language / fall through
-    }
+async function getProxiedFetch(): Promise<typeof fetch | null> {
+  if (proxiedFetch !== undefined) return proxiedFetch;
+  const proxyUrl =
+    (typeof process !== 'undefined' &&
+      (process.env.YOUTUBE_PROXY || process.env.YOUTUBE_PROXY_URL)) ||
+    '';
+  if (!proxyUrl) {
+    proxiedFetch = null;
+    return null;
   }
-  return null;
+  try {
+    const { ProxyAgent } = await import('undici');
+    const dispatcher = new ProxyAgent(proxyUrl);
+    proxiedFetch = ((input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+      // `dispatcher` is a valid undici fetch option, absent from the DOM type.
+      fetch(input, { ...(init ?? {}), dispatcher } as RequestInit)) as typeof fetch;
+  } catch {
+    proxiedFetch = null;
+  }
+  return proxiedFetch;
 }
 
 /**
- * Fetch a YouTube transcript. Prefers the Innertube player API (reliable on
- * serverless) and falls back to the scraping library. Throws a friendly Error
- * so the caller can surface the "paste raw transcript" fallback.
+ * Fetch a YouTube transcript (Telugu → English → default track). Throws a
+ * friendly Error so the caller can surface the "paste raw transcript" fallback.
  */
 export async function fetchYoutubeTranscript(url: string): Promise<TranscriptResult> {
   const videoId = parseVideoId(url);
@@ -166,28 +74,38 @@ export async function fetchYoutubeTranscript(url: string): Promise<TranscriptRes
     throw new Error('Could not find a YouTube video id in that URL.');
   }
 
-  let result: { segments: TranscriptSegment[]; language?: string } | null = null;
-  try {
-    result = await fetchInnertubeTranscript(videoId);
-  } catch {
-    result = null;
-  }
-  if (!result) {
+  const proxy = await getProxiedFetch();
+  const base = proxy ? { fetch: proxy } : {};
+
+  const tryLangs: (string | undefined)[] = ['te', 'en', undefined];
+  let rows: Awaited<ReturnType<typeof fetchTranscript>> | null = null;
+  let lastErr: unknown;
+  for (const lang of tryLangs) {
     try {
-      result = await fetchLibraryTranscript(videoId);
-    } catch {
-      result = null;
+      rows = await fetchTranscript(videoId, { ...base, ...(lang ? { lang } : {}) });
+      if (rows && rows.length) break;
+    } catch (err) {
+      lastErr = err;
     }
   }
 
-  if (!result || !result.segments.length) {
+  if (!rows || !rows.length) {
+    const detail = lastErr instanceof Error ? lastErr.message : '';
     throw new Error(
       'No captions could be fetched for this video. It may have captions disabled, ' +
-        'or YouTube is blocking requests from the server. Paste the transcript text manually instead.',
+        'or YouTube is blocking requests from the server (this is common on cloud hosts ' +
+        'like Vercel — set a YOUTUBE_PROXY to fix it). Paste the transcript text manually instead.' +
+        (detail ? ` (${detail})` : ''),
     );
   }
 
-  const { segments, language } = result;
+  const segments: TranscriptSegment[] = rows.map((r) => ({
+    text: r.text,
+    offsetSec: typeof r.offset === 'number' ? r.offset : 0,
+    durationSec: typeof r.duration === 'number' ? r.duration : 0,
+  }));
+
+  const language = rows[0]?.lang;
   // YouTube often mis-detects Telugu audio as Hindi (and auto-captions are
   // rough). Flag anything that isn't Telugu/English so the user can paste a
   // clean transcript for better results. Memes are still generated in Telugu.

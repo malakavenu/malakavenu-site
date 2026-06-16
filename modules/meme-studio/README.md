@@ -63,7 +63,27 @@ POLLINATIONS_API_KEY=  # optional fallback (required to enable Pollinations text
 # limiter is a graceful no-op. Upstash Redis REST or Vercel KV — same vars.
 KV_REST_URL=           # or UPSTASH_REDIS_REST_URL
 KV_REST_TOKEN=         # or UPSTASH_REDIS_REST_TOKEN
+
+# YouTube transcript proxy (see "YouTube captions" below). Required for the
+# YouTube URL flow to work from cloud hosts (Vercel/AWS); ignored if unset.
+YOUTUBE_PROXY=         # or YOUTUBE_PROXY_URL, e.g. http://user:pass@host:port
 ```
+
+## YouTube captions
+
+The YouTube URL flow uses `youtube-transcript`, which talks to YouTube's
+internal Innertube API with a watch-page fallback. This works from **residential
+IPs** (your laptop), so captions fetch fine in local dev.
+
+From **datacenter IPs** (Vercel, AWS, most clouds) YouTube blocks both paths —
+recaptcha wall + empty caption payloads — so the **same video** returns
+"no captions could be fetched" in production even though it works locally. This
+is a YouTube anti-bot measure, not a bug in this module.
+
+To make the URL flow work in production, set `YOUTUBE_PROXY` to a
+**residential or rotating HTTP(S) proxy**; every YouTube request is then routed
+through it (via undici `ProxyAgent`). Without a proxy, users can still **paste
+the transcript text manually** — that path needs no network access to YouTube.
 
 > Secrets are read **server-side only** (`adapters/env.ts` → `process.env`).
 > Never pass an `adapters.env` block into the client `createMemeStudioConfig`
