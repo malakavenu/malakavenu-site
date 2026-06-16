@@ -59,7 +59,7 @@ export function FeedPanel({ onEdit }: { onEdit: () => void }) {
   const [pasted, setPasted] = useState('');
   const [pasteOpen, setPasteOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [count, setCount] = useState(4);
+  const [count, setCount] = useState(2);
   const [focusIssues, setFocusIssues] = useState<string[]>([]);
   const [stage, setStage] = useState<'idle' | 'transcript' | 'ideas' | 'rendering' | 'done'>(
     'idle',

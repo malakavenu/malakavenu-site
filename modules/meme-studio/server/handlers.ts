@@ -140,7 +140,7 @@ export async function handleIdeas(req: NextRequest): Promise<NextResponse> {
   const target: TargetParty = VALID_TARGETS.includes(raw.target as TargetParty)
     ? (raw.target as TargetParty)
     : 'kutami';
-  const count = Math.min(8, Math.max(1, Number(raw.count) || 4));
+  const count = Math.min(8, Math.max(1, Number(raw.count) || 2));
   const knownLeaders = Array.isArray(raw.knownLeaders)
     ? raw.knownLeaders
         .filter((l): l is string => typeof l === 'string')
