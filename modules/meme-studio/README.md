@@ -64,9 +64,11 @@ POLLINATIONS_API_KEY=  # optional fallback (required to enable Pollinations text
 KV_REST_URL=           # or UPSTASH_REDIS_REST_URL
 KV_REST_TOKEN=         # or UPSTASH_REDIS_REST_TOKEN
 
-# YouTube transcript proxy (see "YouTube captions" below). Required for the
-# YouTube URL flow to work from cloud hosts (Vercel/AWS); ignored if unset.
-YOUTUBE_PROXY=         # or YOUTUBE_PROXY_URL, e.g. http://user:pass@host:port
+# YouTube captions on cloud hosts (see "YouTube captions" below). Set ONE of
+# these so the YouTube URL flow works from Vercel/AWS; both ignored if unset.
+SUPADATA_API_KEY=      # recommended — free tier 100/mo, no card (supadata.ai)
+SUPADATA_MODE=         # optional: native (default, 1 credit) | auto | generate
+YOUTUBE_PROXY=         # alternative — residential proxy, e.g. http://user:pass@host:port
 ```
 
 ## YouTube captions
@@ -80,10 +82,21 @@ recaptcha wall + empty caption payloads — so the **same video** returns
 "no captions could be fetched" in production even though it works locally. This
 is a YouTube anti-bot measure, not a bug in this module.
 
-To make the URL flow work in production, set `YOUTUBE_PROXY` to a
-**residential or rotating HTTP(S) proxy**; every YouTube request is then routed
-through it (via undici `ProxyAgent`). Without a proxy, users can still **paste
-the transcript text manually** — that path needs no network access to YouTube.
+To make the URL flow work in production, set **one** of:
+
+1. **`SUPADATA_API_KEY`** (recommended) — a hosted transcript API with its own
+   non-datacenter fetch infra. Free tier: 100 transcripts/month, no credit card
+   ([supadata.ai](https://supadata.ai)). The library is still tried first, so
+   local dev never spends credits — Supadata is only hit when YouTube blocks the
+   server. `SUPADATA_MODE` defaults to `native` (1 credit, existing captions
+   only); set `auto`/`generate` for AI transcription (2 credits/min) on videos
+   without captions.
+2. **`YOUTUBE_PROXY`** — route every YouTube request through a **residential /
+   rotating HTTP(S) proxy** (via undici `ProxyAgent`). Datacenter proxies do not
+   help — YouTube blocks those too.
+
+Without either, users can still **paste the transcript text manually** — that
+path needs no network access to YouTube and always works.
 
 > Secrets are read **server-side only** (`adapters/env.ts` → `process.env`).
 > Never pass an `adapters.env` block into the client `createMemeStudioConfig`

@@ -1,5 +1,6 @@
 import { fetchTranscript } from 'youtube-transcript';
 import type { TranscriptResult, TranscriptSegment } from '../types';
+import { fetchWithTimeout } from './providers/http';
 
 /** Extract an 11-char YouTube video id from common URL shapes (or a bare id). */
 export function parseVideoId(input: string): string | null {
@@ -64,6 +65,99 @@ async function getProxiedFetch(): Promise<typeof fetch | null> {
   return proxiedFetch;
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Supadata fallback (https://supadata.ai).
+ *
+ * A hosted transcript API that runs its own (non-datacenter) fetch infra, so it
+ * succeeds where direct fetches from Vercel fail. Free tier: 100 transcripts/mo,
+ * no credit card. Set `SUPADATA_API_KEY` to enable. Only called when the free
+ * library path fails, so local dev never spends credits.
+ *
+ * `SUPADATA_MODE` (default `native`) controls cost: `native` = 1 credit and
+ * only existing captions; `auto`/`generate` = AI transcription (2 credits/min).
+ * ──────────────────────────────────────────────────────────────────────── */
+
+interface SupadataChunk {
+  text?: string;
+  offset?: number;
+  duration?: number;
+  lang?: string;
+}
+
+function mapSupadataChunks(chunks: SupadataChunk[]): TranscriptSegment[] {
+  return chunks
+    .map((c) => ({
+      text: (c.text ?? '').replace(/\s+/g, ' ').trim(),
+      offsetSec: (c.offset ?? 0) / 1000,
+      durationSec: (c.duration ?? 0) / 1000,
+    }))
+    .filter((s) => s.text);
+}
+
+async function fetchViaSupadata(
+  videoId: string,
+): Promise<{ segments: TranscriptSegment[]; language?: string } | null> {
+  const key = typeof process !== 'undefined' ? process.env.SUPADATA_API_KEY : undefined;
+  if (!key) return null;
+  const mode =
+    (typeof process !== 'undefined' && process.env.SUPADATA_MODE) || 'native';
+
+  const u = new URL('https://api.supadata.ai/v1/transcript');
+  u.searchParams.set('url', `https://www.youtube.com/watch?v=${videoId}`);
+  u.searchParams.set('text', 'false'); // timestamped chunks
+  u.searchParams.set('mode', mode);
+  u.searchParams.set('lang', 'te'); // auto-falls back to first available track
+
+  const res = await fetchWithTimeout(
+    u.toString(),
+    { headers: { 'x-api-key': key } },
+    30_000,
+  );
+
+  // Large videos (AI mode) return a job id — poll briefly.
+  if (res.status === 202) {
+    const { jobId } = (await res.json()) as { jobId?: string };
+    if (!jobId) return null;
+    for (let i = 0; i < 20; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      const jr = await fetchWithTimeout(
+        `https://api.supadata.ai/v1/transcript/${jobId}`,
+        { headers: { 'x-api-key': key } },
+        30_000,
+      );
+      if (!jr.ok) continue;
+      const jd = (await jr.json()) as {
+        status?: string;
+        content?: SupadataChunk[] | string;
+        lang?: string;
+      };
+      if (jd.status === 'failed') return null;
+      if (jd.status === 'completed' && Array.isArray(jd.content)) {
+        const segments = mapSupadataChunks(jd.content);
+        return segments.length ? { segments, language: jd.lang } : null;
+      }
+    }
+    return null;
+  }
+
+  if (!res.ok) return null;
+  const data = (await res.json()) as {
+    content?: SupadataChunk[] | string;
+    lang?: string;
+  };
+  if (Array.isArray(data.content)) {
+    const segments = mapSupadataChunks(data.content);
+    return segments.length ? { segments, language: data.lang } : null;
+  }
+  if (typeof data.content === 'string' && data.content.trim()) {
+    return {
+      segments: [{ text: data.content.trim(), offsetSec: 0, durationSec: 0 }],
+      language: data.lang,
+    };
+  }
+  return null;
+}
+
 /**
  * Fetch a YouTube transcript (Telugu → English → default track). Throws a
  * friendly Error so the caller can surface the "paste raw transcript" fallback.
@@ -78,34 +172,53 @@ export async function fetchYoutubeTranscript(url: string): Promise<TranscriptRes
   const base = proxy ? { fetch: proxy } : {};
 
   const tryLangs: (string | undefined)[] = ['te', 'en', undefined];
-  let rows: Awaited<ReturnType<typeof fetchTranscript>> | null = null;
+  let segments: TranscriptSegment[] = [];
+  let language: string | undefined;
   let lastErr: unknown;
+
+  // 1) Free library path (works on residential IPs / via proxy).
   for (const lang of tryLangs) {
     try {
-      rows = await fetchTranscript(videoId, { ...base, ...(lang ? { lang } : {}) });
-      if (rows && rows.length) break;
+      const rows = await fetchTranscript(videoId, { ...base, ...(lang ? { lang } : {}) });
+      if (rows && rows.length) {
+        segments = rows.map((r) => ({
+          text: r.text,
+          offsetSec: typeof r.offset === 'number' ? r.offset : 0,
+          durationSec: typeof r.duration === 'number' ? r.duration : 0,
+        }));
+        language = rows[0]?.lang;
+        break;
+      }
     } catch (err) {
       lastErr = err;
     }
   }
 
-  if (!rows || !rows.length) {
+  // 2) Supadata fallback (works from cloud hosts when YouTube blocks the server).
+  if (!segments.length) {
+    try {
+      const sd = await fetchViaSupadata(videoId);
+      if (sd) {
+        segments = sd.segments;
+        language = sd.language;
+      }
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+
+  if (!segments.length) {
+    const hasSupadata = typeof process !== 'undefined' && !!process.env.SUPADATA_API_KEY;
     const detail = lastErr instanceof Error ? lastErr.message : '';
     throw new Error(
       'No captions could be fetched for this video. It may have captions disabled, ' +
-        'or YouTube is blocking requests from the server (this is common on cloud hosts ' +
-        'like Vercel — set a YOUTUBE_PROXY to fix it). Paste the transcript text manually instead.' +
+        'or YouTube is blocking requests from the server (common on cloud hosts like Vercel' +
+        (hasSupadata ? '' : ' — set SUPADATA_API_KEY or YOUTUBE_PROXY to fix it') +
+        '). Paste the transcript text manually instead.' +
         (detail ? ` (${detail})` : ''),
     );
   }
 
-  const segments: TranscriptSegment[] = rows.map((r) => ({
-    text: r.text,
-    offsetSec: typeof r.offset === 'number' ? r.offset : 0,
-    durationSec: typeof r.duration === 'number' ? r.duration : 0,
-  }));
-
-  const language = rows[0]?.lang;
   // YouTube often mis-detects Telugu audio as Hindi (and auto-captions are
   // rough). Flag anything that isn't Telugu/English so the user can paste a
   // clean transcript for better results. Memes are still generated in Telugu.

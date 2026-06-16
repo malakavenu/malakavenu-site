@@ -15,6 +15,9 @@ export const defaultEnv = {
   get POLLINATIONS_API_KEY() {
     return typeof process !== 'undefined' ? process.env.POLLINATIONS_API_KEY : undefined;
   },
+  get SUPADATA_API_KEY() {
+    return typeof process !== 'undefined' ? process.env.SUPADATA_API_KEY : undefined;
+  },
 };
 
 const isProd = typeof process !== 'undefined' && process.env.NODE_ENV === 'production';
