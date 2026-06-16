@@ -14,6 +14,11 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   compress: true,
 
+  // Keep the Cursor SDK (and its non-JS sidecar files) out of the bundler;
+  // it runs as a node-only require at request time inside the meme-studio
+  // server handlers.
+  serverExternalPackages: ['@cursor/sdk'],
+
   // Ensure MDX article sources are packaged into serverless bundles that
   // read them at request time (sitemap, rss). Next's file tracer can't
   // always resolve fs.readdir(process.cwd(), 'content', 'articles') paths,

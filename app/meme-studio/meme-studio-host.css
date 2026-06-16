@@ -1,0 +1,32 @@
+/* ============================================================================
+   Meme Studio host — strips the site chrome and reclaims the full viewport.
+   Loaded only on /meme-studio (and nested routes) via the layout import.
+   ============================================================================ */
+
+.ms-shell-host {
+  min-height: 100vh;
+  background: #07090f;
+  isolation: isolate;
+  color-scheme: dark;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+.ms-shell-host ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.ms-shell-host ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+.ms-shell-host ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+body:has(.ms-shell-host) .skip-link,
+body:has(.ms-shell-host) .site-header,
+body:has(.ms-shell-host) .site-footer,
+body:has(.ms-shell-host) .mobile-dock {
+  display: none !important;
+}

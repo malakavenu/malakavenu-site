@@ -16,11 +16,15 @@
     "demo": "rm -rf scripts/demo/.artifacts && npm run demo:record && npm run demo:gif",
     "demo:mobile": "rm -rf scripts/demo/.artifacts-mobile && npm run demo:mobile:record && npm run demo:gif",
     "voice-studio:samples": "node modules/voice-studio/scripts/generate-samples.mjs",
-    "voice-studio:avatars": "node modules/voice-studio/scripts/fetch-avatars.mjs"
+    "voice-studio:avatars": "node modules/voice-studio/scripts/fetch-avatars.mjs",
+    "meme-studio:reindex": "node modules/meme-studio/scripts/reindex.mjs"
   },
   "dependencies": {
     "@andresaya/edge-tts": "^1.8.0",
     "@breezystack/lamejs": "^1.2.7",
+    "@cursor/sdk": "^1.0.18",
+    "@fontsource/anton": "^5.2.7",
+    "@fontsource/noto-sans-telugu": "^5.2.8",
     "@gradio/client": "^2.2.1",
     "@huggingface/inference": "^4.13.18",
     "@huggingface/transformers": "^4.2.0",
@@ -53,7 +57,8 @@
     "shiki": "^4.0.2",
     "simple-icons": "^16.17.0",
     "three": "^0.184.0",
-    "wawa-lipsync": "^0.0.2"
+    "wawa-lipsync": "^0.0.2",
+    "youtube-transcript": "^1.3.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

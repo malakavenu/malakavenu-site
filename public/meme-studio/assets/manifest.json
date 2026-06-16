@@ -1,0 +1,40 @@
+{
+  "assets": [
+    {
+      "id": "symbols-janasena",
+      "category": "symbols",
+      "file": "janasena.png",
+      "tags": [
+        "symbols",
+        "janasena"
+      ]
+    },
+    {
+      "id": "symbols-tdp-logo",
+      "category": "symbols",
+      "file": "tdp-logo.jpg",
+      "tags": [
+        "symbols",
+        "tdp-logo"
+      ]
+    },
+    {
+      "id": "symbols-ysrcp_symbol",
+      "category": "symbols",
+      "file": "ysrcp_symbol.gif",
+      "tags": [
+        "symbols",
+        "ysrcp_symbol"
+      ]
+    },
+    {
+      "id": "stickers-cartoon-cockroach-swarm-sticker-pack-for-7d2241ab",
+      "category": "stickers",
+      "file": "cartoon-cockroach-swarm-sticker-pack-for-7d2241ab.svg",
+      "tags": [
+        "stickers",
+        "cartoon-cockroach-swarm-sticker-pack-for-7d2241ab"
+      ]
+    }
+  ]
+}

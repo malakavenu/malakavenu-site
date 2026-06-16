@@ -61,6 +61,7 @@ export function AssistantLauncher() {
   //   player and isn't on-brand with the studio UI.
   if (pathname === '/playground') return null;
   if (pathname === '/voice-studio' || pathname?.startsWith('/voice-studio/')) return null;
+  if (pathname === '/meme-studio' || pathname?.startsWith('/meme-studio/')) return null;
 
   function handleClick() {
     try {

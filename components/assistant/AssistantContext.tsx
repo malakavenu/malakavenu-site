@@ -16,7 +16,12 @@ import { AssistantDrawer } from './AssistantDrawer';
 /** Routes where the global Ask-Malaka surface is fully disabled. */
 function isAssistantDisabledRoute(pathname: string | null | undefined): boolean {
   if (!pathname) return false;
-  return pathname === '/voice-studio' || pathname.startsWith('/voice-studio/');
+  return (
+    pathname === '/voice-studio' ||
+    pathname.startsWith('/voice-studio/') ||
+    pathname === '/meme-studio' ||
+    pathname.startsWith('/meme-studio/')
+  );
 }
 
 /**

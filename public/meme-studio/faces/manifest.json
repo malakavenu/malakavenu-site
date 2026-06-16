@@ -1,0 +1,48 @@
+{
+  "leaders": [
+    {
+      "leaderId": "chandrababu-naidu",
+      "name": "N. Chandrababu Naidu",
+      "party": "tdp",
+      "photos": [
+        {
+          "file": "chandrababu-naidu.webp",
+          "expression": "serious"
+        }
+      ]
+    },
+    {
+      "leaderId": "jagan",
+      "name": "YS Jagan Mohan Reddy",
+      "party": "ysrcp",
+      "photos": [
+        {
+          "file": "jagan.jpg",
+          "expression": "serious"
+        }
+      ]
+    },
+    {
+      "leaderId": "nara-lokesh",
+      "name": "Nara Lokesh",
+      "party": "tdp",
+      "photos": [
+        {
+          "file": "nara-lokesh.webp",
+          "expression": "serious"
+        }
+      ]
+    },
+    {
+      "leaderId": "pawan-kalyan",
+      "name": "Pawan Kalyan",
+      "party": "janasena",
+      "photos": [
+        {
+          "file": "pawan-kalyan.jpg",
+          "expression": "serious"
+        }
+      ]
+    }
+  ]
+}

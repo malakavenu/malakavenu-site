@@ -1,0 +1,19 @@
+{
+  "name": "@malakavenu/meme-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bilingual (English + Telugu) political meme generator — YouTube transcript → meme concepts (Cursor SDK / OpenAI / Anthropic) → composed memes (gpt-image-2 / Pollinations + canvas).",
+  "exports": {
+    ".": "./index.ts",
+    "./config": "./config.ts",
+    "./types": "./types.ts"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "dependencies": {
+    "@cursor/sdk": "^1.0.13",
+    "youtube-transcript": "^1.2.1"
+  }
+}
